@@ -1,0 +1,15 @@
+[Unit]
+Description=Actual Budget server
+
+[Container]
+ContainerName=actual-budget
+Image=docker.io/actualbudget/actual-server:latest
+Network=web.network
+Volume=actual-budget-data.volume:/data
+
+[Service]
+Restart=always
+TimeoutStartSec=300
+
+[Install]
+WantedBy=default.target

@@ -1,0 +1,15 @@
+[Unit]
+Description=Seerr media request manager
+
+[Container]
+ContainerName=seerr
+Image=ghcr.io/seerr-team/seerr:latest
+Network=web.network
+Volume=seerr-config.volume:/app/config
+
+[Service]
+Restart=always
+TimeoutStartSec=300
+
+[Install]
+WantedBy=default.target

@@ -1,0 +1,11 @@
+http://jellyfin.localhost {
+    reverse_proxy jellyfin:8096
+}
+
+http://seerr.localhost {
+    reverse_proxy seerr:5055
+}
+
+http://actual.localhost {
+    reverse_proxy actual-budget:5006
+}

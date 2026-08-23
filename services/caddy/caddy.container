@@ -1,0 +1,19 @@
+[Unit]
+Description=Caddy reverse proxy
+
+[Container]
+ContainerName=caddy
+Image=docker.io/caddy:2
+PublishPort=8443:443
+PublishPort=8080:80
+Network=web.network
+Volume=caddy-config.volume:/config
+Volume=caddy-data.volume:/data
+Volume=./resources/Caddyfile:/etc/caddy/Caddyfile:ro
+
+[Service]
+Restart=always
+TimeoutStartSec=300
+
+[Install]
+WantedBy=default.target

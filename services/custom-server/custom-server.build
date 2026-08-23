@@ -1,0 +1,9 @@
+[Build]
+ImageTag=localhost/starter-home/custom-server:latest
+SetWorkingDirectory=resources/
+File=resources/Containerfile
+
+[Service]
+Type=oneshot
+TimeoutStartSec=900
+RemainAfterExit=yes

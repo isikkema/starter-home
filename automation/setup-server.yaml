@@ -1,0 +1,459 @@
+- name: Set up starter-home
+  hosts: all
+  become: true
+  gather_facts: no
+
+  vars:
+      service_user: starter-home
+      service_uid: 1000
+      service_home: /home/starter-home
+
+      service_source_dir: "{{ playbook_dir }}/../services"
+      backup_source_dir: "{{ playbook_dir }}/../backup"
+
+      vm_storage_dir: /vm-storage
+
+  pre_tasks:
+      - name: Wait for the VM to accept connections
+        ansible.builtin.wait_for_connection:
+            timeout: 180
+        become: false
+
+      - name: Discover starter-home services
+        ansible.builtin.find:
+            paths: "{{ service_source_dir }}"
+            recurse: false
+            file_type: directory
+        register: service_directories
+        delegate_to: localhost
+        become: false
+
+      - name: Discover service containers
+        ansible.builtin.find:
+            paths: "{{ item.path }}"
+            recurse: false
+            file_type: file
+            patterns: "*.container"
+        loop: "{{ service_directories.files | sort(attribute='path') }}"
+        loop_control:
+            label: "{{ item.path | basename }}"
+        register: service_containers
+        delegate_to: localhost
+        become: false
+
+      - name: Discover service volumes
+        ansible.builtin.find:
+            paths: "{{ service_source_dir }}"
+            recurse: true
+            file_type: file
+            patterns: "*.volume"
+        register: service_volumes
+        delegate_to: localhost
+        become: false
+
+      - name: Validate services
+        ansible.builtin.assert:
+            that:
+                - item.matched | int == 1
+                - (item.files[0].path | basename) == (item.item.path | basename) ~ '.container'
+            fail_msg: >-
+                Service {{ item.item.path | basename }} must contain exactly one
+                {{ item.item.path | basename }}.container file.
+            quiet: true
+        loop: "{{ service_containers.results }}"
+        loop_control:
+            label: "{{ item.item.path | basename }}"
+        delegate_to: localhost
+        become: false
+
+      - name: Determine service unit names
+        ansible.builtin.set_fact:
+            service_units: >-
+                {{ service_directories.files
+                   | map(attribute='path')
+                   | map('basename')
+                   | map('regex_replace', '$', '.service')
+                   | list }}
+        become: false
+
+  tasks:
+      - name: Install required packages
+        ansible.builtin.apt:
+            name:
+                - podman
+                - uidmap
+                - slirp4netns
+                - fuse-overlayfs
+                - dbus-user-session
+                - restic
+                - rsync
+            state: present
+            update_cache: true
+
+      - name: Create the rootless service account
+        ansible.builtin.user:
+            name: "{{ service_user }}"
+            uid: "{{ service_uid }}"
+            shell: /bin/bash
+            create_home: true
+
+      - name: Configure subordinate UID range
+        ansible.builtin.lineinfile:
+            path: /etc/subuid
+            regexp: "^{{ service_user }}:"
+            line: "{{ service_user }}:100000:65536"
+            create: true
+
+      - name: Configure subordinate GID range
+        ansible.builtin.lineinfile:
+            path: /etc/subgid
+            regexp: "^{{ service_user }}:"
+            line: "{{ service_user }}:100000:65536"
+            create: true
+
+      - name: Enable lingering for the service account
+        ansible.builtin.command:
+            argv:
+                - loginctl
+                - enable-linger
+                - "{{ service_user }}"
+
+      - name: Create VM storage
+        ansible.builtin.file:
+            path: "{{ vm_storage_dir }}"
+            state: directory
+            owner: "{{ service_user }}"
+            group: "{{ service_user }}"
+            mode: "0755"
+
+      - name: Create rootless Quadlet directory
+        ansible.builtin.file:
+            path: "{{ service_home }}/.config/containers/systemd"
+            state: directory
+            owner: "{{ service_user }}"
+            group: "{{ service_user }}"
+            mode: "0755"
+
+      - name: Synchronize services
+        ansible.posix.synchronize:
+            src: "{{ item.path }}/"
+            dest: "{{ service_home }}/.config/containers/systemd/{{ item.path | basename }}/"
+            delete: true
+            recursive: true
+        loop: "{{ service_directories.files | sort(attribute='path') }}"
+        loop_control:
+            label: "{{ item.path | basename }}"
+        register: service_sync
+        delegate_to: localhost
+        become: false
+
+      - name: Determine service names
+        ansible.builtin.set_fact:
+            source_service_names: >-
+                {{ service_directories.files
+                    | map(attribute='path')
+                    | map('basename')
+                    | list }}
+
+      - name: Discover deployed services
+        ansible.builtin.find:
+            paths: "{{ service_home }}/.config/containers/systemd"
+            recurse: false
+            file_type: directory
+        register: deployed_services
+
+      - name: Determine removed services
+        ansible.builtin.set_fact:
+            removed_services: >-
+                {{ deployed_services.files
+                    | map(attribute='path')
+                    | map('basename')
+                    | difference(source_service_names)
+                    | list }}
+
+      - name: Stop removed container services
+        become_user: "{{ service_user }}"
+        environment:
+            XDG_RUNTIME_DIR: "/run/user/{{ service_uid }}"
+        ansible.builtin.systemd_service:
+            name: "{{ item }}.service"
+            state: stopped
+            enabled: false
+            scope: user
+        loop: "{{ removed_services }}"
+
+      - name: Stop removed build services
+        become_user: "{{ service_user }}"
+        environment:
+            XDG_RUNTIME_DIR: "/run/user/{{ service_uid }}"
+        ansible.builtin.systemd_service:
+            name: "{{ item }}-build.service"
+            state: stopped
+            scope: user
+        loop: "{{ removed_services }}"
+
+      - name: Remove deleted services
+        ansible.builtin.file:
+            path: "{{ service_home }}/.config/containers/systemd/{{ item }}"
+            state: absent
+        loop: "{{ removed_services }}"
+
+      - name: Reload systemd
+        become_user: "{{ service_user }}"
+        environment:
+            XDG_RUNTIME_DIR: "/run/user/{{ service_uid }}"
+        ansible.builtin.systemd_service:
+            daemon_reload: true
+            scope: user
+
+      - name: Discover existing volumes
+        ansible.builtin.command:
+            argv:
+                - podman
+                - volume
+                - ls
+                - --format
+                - "{{ '{{' }} .Name {{ '}}' }}"
+        register: before_volumes
+        become: false
+
+      - name: Create all volumes
+        become_user: "{{ service_user }}"
+        environment:
+            XDG_RUNTIME_DIR: "/run/user/{{ service_uid }}"
+        ansible.builtin.systemd_service:
+            name: "{{ item.path | basename | regex_replace('\\.volume$', '-volume') }}.service"
+            state: restarted
+            scope: user
+        loop: "{{ service_volumes.files }}"
+        loop_control:
+            label: "{{ item.path | basename }}"
+
+      - name: Copy backup config
+        ansible.builtin.copy:
+            src: "{{ backup_source_dir }}"
+            dest: "{{ service_home }}/"
+            owner: "{{ service_user }}"
+            group: "{{ service_user }}"
+            mode: "0700"
+
+      - name: Check for local backup repository
+        ansible.builtin.shell:
+            cmd: |
+                set -a
+                . {{ service_home }}/backup/local_backup.env
+                set +a
+                restic cat config
+        register: local_backup_check
+        failed_when: local_backup_check.rc != 0 and local_backup_check.rc != 10
+        become: false
+
+      - name: Discover all volumes
+        ansible.builtin.command:
+            argv:
+                - podman
+                - volume
+                - ls
+                - --format
+                - "{{ '{{' }} .Name {{ '}}' }}"
+        register: after_volumes
+        become: false
+
+      - name: Determine new volumes
+        ansible.builtin.set_fact:
+            restore_volumes: "{{ after_volumes.stdout_lines | difference(before_volumes.stdout_lines) | list | default([]) }}"
+
+      - name: Restore from local backup repository
+        ansible.builtin.shell:
+            cmd: |
+                set -a
+                . {{ service_home }}/backup/local_backup.env
+                set +a
+                restic restore latest --target {{ service_home }}/local_restore
+        when: local_backup_check.rc == 0 and restore_volumes | length > 0
+        become: false
+
+      - name: Import volumes from local restore
+        ansible.builtin.command:
+            argv:
+                - podman
+                - volume
+                - import
+                - "{{ item }}"
+                - "{{ service_home }}/local_restore/{{ item }}.tar"
+        become: false
+        loop: "{{ restore_volumes }}"
+        when: local_backup_check.rc == 0
+
+      - name: Delete local restore
+        ansible.builtin.file:
+            path: "{{ service_home }}/local_restore"
+            state: absent
+        when: local_backup_check.rc == 0 and restore_volumes | length > 0
+
+      - name: Check for remote backup repository
+        ansible.builtin.shell:
+            cmd: |
+                set -a
+                . {{ service_home }}/backup/remote_backup.env
+                set +a
+                restic cat config
+        register: remote_backup_check
+        failed_when: remote_backup_check.rc != 0 and remote_backup_check.rc != 10
+        when: local_backup_check.rc == 10
+        become: false
+
+      - name: Restore from remote backup repository
+        ansible.builtin.shell:
+            cmd: |
+                set -a
+                . {{ service_home }}/backup/remote_backup.env
+                set +a
+                restic restore latest --target {{ service_home }}/remote_restore
+        when: remote_backup_check.rc == 0 and restore_volumes | length > 0
+        become: false
+
+      - name: Import volumes from remote restore
+        ansible.builtin.command:
+            argv:
+                - podman
+                - volume
+                - import
+                - "{{ item }}"
+                - "{{ service_home }}/remote_restore/{{ item }}.tar"
+        become: false
+        loop: "{{ restore_volumes }}"
+        when: remote_backup_check.rc == 0
+
+      - name: Delete remote restore
+        ansible.builtin.file:
+            path: "{{ service_home }}/remote_restore"
+            state: absent
+        when: remote_backup_check.rc == 0 and restore_volumes | length > 0
+
+      - name: Rebuild changed service images
+        become_user: "{{ service_user }}"
+        environment:
+            XDG_RUNTIME_DIR: "/run/user/{{ service_uid }}"
+        ansible.builtin.systemd_service:
+            name: "{{ item.item.path | basename }}-build.service"
+            state: restarted
+            scope: user
+        loop: "{{ service_sync.results }}"
+        loop_control:
+            label: "{{ item.item.path | basename }}"
+        when:
+            - item.changed
+            - lookup(
+              'ansible.builtin.fileglob',
+              item.item.path + '/*.build',
+              wantlist=true
+              ) | length > 0
+
+      - name: Start new or unchanged services
+        become_user: "{{ service_user }}"
+        environment:
+            XDG_RUNTIME_DIR: "/run/user/{{ service_uid }}"
+        ansible.builtin.systemd_service:
+            name: "{{ item }}"
+            state: started
+            scope: user
+        loop: "{{ service_units }}"
+
+      - name: Restart changed services
+        become_user: "{{ service_user }}"
+        environment:
+            XDG_RUNTIME_DIR: "/run/user/{{ service_uid }}"
+        ansible.builtin.systemd_service:
+            name: "{{ item.item.path | basename }}.service"
+            state: restarted
+            scope: user
+        loop: "{{ service_sync.results }}"
+        loop_control:
+            label: "{{ item.item.path | basename }}"
+        when: item.changed
+
+      - name: Initialize local backup repository
+        ansible.builtin.shell:
+            cmd: |
+                set -a
+                . {{ service_home }}/backup/local_backup.env
+                set +a
+                restic init
+        when: local_backup_check.rc == 10
+        become: false
+
+      - name: Initialize remote backup repository
+        ansible.builtin.shell:
+            cmd: |
+                set -a
+                . {{ service_home }}/backup/remote_backup.env
+                set +a
+                restic init
+        when: remote_backup_check.rc == 10
+        become: false
+
+      - name: Create user systemd directory
+        ansible.builtin.file:
+            path: "{{ service_home }}/.config/systemd/user"
+            state: directory
+            owner: "{{ service_user }}"
+            group: "{{ service_user }}"
+            mode: "0755"
+
+      - name: Discover backup services
+        ansible.builtin.find:
+            path: "{{ service_home }}/backup/"
+            patterns: "*.service"
+        register: backup_services
+
+      - name: Install backup services
+        ansible.builtin.copy:
+            remote_src: true
+            src: "{{ item.path }}"
+            dest: "{{ service_home }}/.config/systemd/user/"
+            owner: "{{ service_user }}"
+            group: "{{ service_user }}"
+            mode: "0644"
+        loop: "{{ backup_services.files }}"
+        loop_control:
+            label: "{{ item.path | basename }}"
+
+      - name: Discover backup timers
+        ansible.builtin.find:
+            path: "{{ service_home }}/backup/"
+            patterns: "*.timer"
+        register: backup_timers
+
+      - name: Install backup timers
+        ansible.builtin.copy:
+            remote_src: true
+            src: "{{ item.path }}"
+            dest: "{{ service_home }}/.config/systemd/user/"
+            owner: "{{ service_user }}"
+            group: "{{ service_user }}"
+            mode: "0644"
+        loop: "{{ backup_timers.files }}"
+        loop_control:
+            label: "{{ item.path | basename }}"
+
+      - name: Reload systemd
+        become_user: "{{ service_user }}"
+        environment:
+            XDG_RUNTIME_DIR: "/run/user/{{ service_uid }}"
+        ansible.builtin.systemd_service:
+            daemon_reload: true
+            scope: user
+
+      - name: Enable backup timers
+        become_user: "{{ service_user }}"
+        environment:
+            XDG_RUNTIME_DIR: "/run/user/{{ service_uid }}"
+        ansible.builtin.systemd_service:
+            name: "{{ item.path | basename }}"
+            enabled: true
+            state: started
+            scope: user
+        loop: "{{ backup_timers.files }}"
+        loop_control:
+            label: "{{ item.path | basename }}"

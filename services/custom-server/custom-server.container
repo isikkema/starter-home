@@ -1,0 +1,17 @@
+[Unit]
+Description=Custom starter-home SSH server
+
+[Container]
+ContainerName=custom-server
+Image=custom-server.build
+PublishPort=3333:22
+Volume=custom-server-home.volume:/home/server
+Volume=custom-server-etc.volume:/etc/ssh
+Volume=./resources/authorized_keys:/bootstrap/authorized_keys:ro
+
+[Service]
+Restart=always
+TimeoutStartSec=300
+
+[Install]
+WantedBy=default.target

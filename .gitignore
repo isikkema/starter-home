@@ -1,0 +1,6 @@
+**/secrets/*
+/host-storage/*
+
+*.env
+
+!/**/.gitkeep
