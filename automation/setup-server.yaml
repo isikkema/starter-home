@@ -300,8 +300,10 @@
                 restic cat config
         register: remote_backup_check
         failed_when: remote_backup_check.rc != 0 and remote_backup_check.rc != 10
-        when: local_backup_check.rc == 10
         become: false
+
+      - ansible.builtin.set_fact:
+            do_remote_restore: "{{ local_backup_check.rc == 10 and remote_backup_check.rc == 0 and restore_volumes | length > 0 }}"
 
       - name: Restore from remote backup repository
         ansible.builtin.shell:
@@ -310,7 +312,7 @@
                 . {{ service_home }}/backup/remote_backup.env
                 set +a
                 restic restore latest --target {{ service_home }}/remote_restore
-        when: remote_backup_check.rc == 0 and restore_volumes | length > 0
+        when: do_remote_restore
         become: false
 
       - name: Import volumes from remote restore
@@ -323,13 +325,13 @@
                 - "{{ service_home }}/remote_restore/{{ item }}.tar"
         become: false
         loop: "{{ restore_volumes }}"
-        when: remote_backup_check.rc == 0
+        when: do_remote_restore
 
       - name: Delete remote restore
         ansible.builtin.file:
             path: "{{ service_home }}/remote_restore"
             state: absent
-        when: remote_backup_check.rc == 0 and restore_volumes | length > 0
+        when: do_remote_restore
 
       - name: Rebuild changed service images
         become_user: "{{ service_user }}"
