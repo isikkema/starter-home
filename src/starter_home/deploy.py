@@ -1,22 +1,13 @@
-#!/usr/bin/env -S uv run --script
-# /// script
-# requires-python = ">=3.11"
-# dependencies = [
-#     "ansible-core>=2.19,<3",
-# ]
-# ///
-
 import os
 import shutil
 import subprocess
 import sys
-from pathlib import Path
+
+from .files import ROOT
 
 INSTANCE = "starter-home"
 IMAGE = "images:debian/13/cloud"
 IP_ADDRESS = "10.56.24.100"
-
-ROOT = Path(__file__).resolve().parent
 
 VM_CONFIG = ROOT / "virtual-machine" / "configuration.yaml"
 
@@ -121,7 +112,7 @@ def check_known_hosts() -> bool:
 
 def create_known_hosts() -> None:
     print("Creating known hosts")
-    
+
     host_key = HOST_KEY_PUBLIC.read_text()
     _ = KNOWN_HOSTS.write_text(f"{IP_ADDRESS} {host_key}")
 

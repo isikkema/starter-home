@@ -1,14 +1,14 @@
 import glob
 import subprocess
 import sys
-from pathlib import Path
 
-ROOT = Path(__file__).resolve().parent
+from .files import ROOT
+
 SECRETS = ROOT / "secrets"
 LOCAL_BACKUP = ROOT / "host-storage" / "backup"
 
 
-def main(delete_local_backup: bool = False) -> None:
+def main(delete_local_backup: bool) -> None:
     _ = subprocess.run(
         ["sudo", "incus", "stop", "starter-home"],
         stdout=subprocess.DEVNULL,
