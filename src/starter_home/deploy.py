@@ -5,9 +5,9 @@ import sys
 
 import click
 
+from .config import INSTANCE
 from .files import ROOT
 
-INSTANCE = "starter-home"
 IMAGE = "images:debian/13/cloud"
 IP_ADDRESS = "10.56.24.100"
 
