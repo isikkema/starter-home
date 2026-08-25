@@ -3,6 +3,8 @@ import shutil
 import subprocess
 import sys
 
+import click
+
 from .files import ROOT
 
 INSTANCE = "starter-home"
@@ -27,7 +29,8 @@ SSH_KEY_PUBLIC = SECRETS / "id_ed25519.pub"
 KNOWN_HOSTS = SECRETS / "known_hosts"
 
 
-def main() -> None:
+@click.command()
+def deploy() -> None:
     check_incus()
 
     ensure_host_key()
@@ -140,7 +143,7 @@ def check_vm_exists() -> bool:
         check=False,
     )
 
-    return proc.returncode == 0 and proc.stdout is not None
+    return proc.returncode == 0 and len(proc.stdout) > 0
 
 
 def create_vm() -> None:
@@ -210,7 +213,3 @@ def install_services() -> None:
         cwd=ROOT,
         check=True,
     )
-
-
-if __name__ == "__main__":
-    main()
