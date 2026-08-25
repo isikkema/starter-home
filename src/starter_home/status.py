@@ -1,27 +1,16 @@
-import subprocess
-
 import click
 
-from .config import INSTANCE
+from .incus import get_instance, new_incus_client
 
 
 @click.command()
 def status() -> None:
-    out = subprocess.run(
-        ["sudo", "incus", "list", INSTANCE, "--format", "csv", "--columns", "s4"],
-        capture_output=True,
-        text=True,
-        check=True,
-    ).stdout.strip()
+    client = new_incus_client()
+    instance = get_instance(client)
+    if instance is None:
+        print("Server:     Not deployed")
+        print("IP address: None")
+        return
 
-    if len(out) == 0:
-        state = "NOT CREATED"
-        ip = "NONE"
-    else:
-        state, ip = out.split(",")
-        ip = ip.split(" ")[0]
-        if len(ip) == 0:
-            ip = "NONE"
-
-    print(f"Server:     {state}")
-    print(f"IP address: {ip}")
+    print(f"Server:     {instance.state}")
+    print(f"IP address: {instance.ip_address}")
