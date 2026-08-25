@@ -1,5 +1,6 @@
 import click
 
+from .backup import backup
 from .clean import clean
 from .deploy import deploy
 
@@ -9,6 +10,7 @@ def cli() -> None:
     pass
 
 
+cli.add_command(backup)
 cli.add_command(clean)
 cli.add_command(deploy)
 

@@ -1,27 +1,26 @@
-#!/usr/bin/env -S uv run --script
-# /// script
-# requires-python = ">=3.11"
-# dependencies = [
-#     "ansible-core>=2.19,<3",
-# ]
-# ///
-
 import os
 import subprocess
-from pathlib import Path
 
-ROOT = Path(__file__).resolve().parent
+import click
+
+from .files import ROOT
 
 INVENTORY = ROOT / "automation" / "inventory" / "virtual-machine.yaml"
 PLAYBOOK = ROOT / "automation" / "manual-backup.yaml"
 ANSIBLE_CONFIG = ROOT / "automation" / "ansible.cfg"
 
 
-def main() -> None:
+@click.group()
+def backup() -> None:
+    pass
+
+
+@backup.command()
+def create() -> None:
     env = os.environ.copy()
     env["ANSIBLE_CONFIG"] = str(ANSIBLE_CONFIG)
 
-    print("Installing services into VM")
+    print("Creating backup")
     _ = subprocess.run(
         [
             "ansible-playbook",
@@ -33,7 +32,3 @@ def main() -> None:
         cwd=ROOT,
         check=True,
     )
-
-
-if __name__ == "__main__":
-    main()
