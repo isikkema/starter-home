@@ -1,7 +1,7 @@
 import click
 
 from .backup import backup
-from .clean import clean
+from .delete import delete
 from .deploy import deploy
 from .status import status
 
@@ -12,7 +12,7 @@ def cli() -> None:
 
 
 cli.add_command(backup)
-cli.add_command(clean)
+cli.add_command(delete)
 cli.add_command(deploy)
 cli.add_command(status)
 

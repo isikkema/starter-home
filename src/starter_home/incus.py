@@ -5,8 +5,8 @@ from .config import INSTANCE
 
 INCUS_SOCKET = "/var/lib/incus/unix.socket"
 
-BASE_URL = "http://incus/1.0"
-INSTANCE_URL = BASE_URL + "/instances"
+BASE_URL = "http://incus"
+INSTANCE_URL = BASE_URL + "/1.0/instances"
 
 
 class Instance:
@@ -41,3 +41,30 @@ def get_instance(client: Client) -> Instance | None:
                     ip_address = addr["address"]
 
     return Instance(status, ip_address)
+
+
+def stop_instance(client: Client) -> None:
+    resp = client.put(
+        f"{INSTANCE_URL}/{INSTANCE}/state",
+        json={"action": "stop"},
+    )
+
+    if resp.status_code == 404:
+        return
+
+    _ = resp.raise_for_status()
+
+    operation = resp.json()["operation"]
+
+    resp = client.get(f"{BASE_URL}{operation}/wait")
+    _ = resp.raise_for_status()
+
+
+def delete_instance(client: Client) -> None:
+    stop_instance(client)
+
+    resp = client.delete(f"{INSTANCE_URL}/{INSTANCE}")
+    if resp.status_code == 404:
+        return
+
+    _ = resp.raise_for_status()
