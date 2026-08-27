@@ -1,18 +1,31 @@
+import json
+from typing import Any
+
 import httpx
 from httpx import Client
 
 from .config import INSTANCE
+from .files import ROOT
 
 INCUS_SOCKET = "/var/lib/incus/unix.socket"
 
 BASE_URL = "http://incus"
 INSTANCE_URL = BASE_URL + "/1.0/instances"
 
+IMAGE = "debian/13/cloud"
+VM_CONFIG = ROOT / "virtual-machine" / "config.json"
+
+SECRETS = ROOT / "secrets"
+HOST_KEY = SECRETS / "ssh_host_ed25519_key"
+HOST_KEY_PUBLIC = SECRETS / "ssh_host_ed25519_key.pub"
+SSH_KEY = SECRETS / "id_ed25519"
+SSH_KEY_PUBLIC = SECRETS / "id_ed25519.pub"
+
 
 class Instance:
-    def __init__(self, state: str, ip_address: str) -> None:
+    def __init__(self, state: str, ip_address: str | None) -> None:
         self.state: str = state
-        self.ip_address: str = ip_address
+        self.ip_address: str | None = ip_address
 
 
 def new_incus_client() -> Client:
@@ -43,6 +56,73 @@ def get_instance(client: Client) -> Instance | None:
     return Instance(status, ip_address)
 
 
+def create_instance(client: Client) -> None:
+    request_base = {
+        "name": INSTANCE,
+        "type": "virtual-machine",
+        "start": True,
+        "source": {
+            "type": "image",
+            "alias": IMAGE,
+            "protocol": "simplestreams",
+            "server": "https://images.linuxcontainers.org/",
+        },
+    }
+
+    with open(VM_CONFIG, "r") as f:
+        config: dict[str, Any] = json.load(f)
+
+    host_key = ""
+    for idx, line in enumerate(HOST_KEY.read_text().strip().splitlines()):
+        if idx == 0:
+            host_key += " " * 4 + line
+        else:
+            host_key += "\n" + " " * 8 + line
+
+    cloud_init = config["config"]["cloud-init.user-data"]
+    cloud_init = cloud_init.replace("${SSH_HOST_PRIVATE_KEY}", host_key)
+    cloud_init = cloud_init.replace(
+        "${SSH_HOST_PUBLIC_KEY}", HOST_KEY_PUBLIC.read_text().strip()
+    )
+    cloud_init = cloud_init.replace(
+        "${SSH_PUBLIC_KEY}", SSH_KEY_PUBLIC.read_text().strip()
+    )
+
+    config["config"]["cloud-init.user-data"] = cloud_init
+
+    print(cloud_init)
+
+    data = dict(request_base, **config)
+    print(data)
+    resp = client.post(
+        INSTANCE_URL,
+        json=data,
+    )
+
+    _ = resp.raise_for_status()
+
+    operation = resp.json()["operation"]
+
+    resp = client.get(f"{BASE_URL}{operation}/wait")
+    _ = resp.raise_for_status()
+
+    print("Created")
+
+
+def start_instance(client: Client) -> None:
+    resp = client.put(
+        f"{INSTANCE_URL}/{INSTANCE}/state",
+        json={"action": "start"},
+    )
+
+    _ = resp.raise_for_status()
+
+    operation = resp.json()["operation"]
+
+    resp = client.get(f"{BASE_URL}{operation}/wait")
+    _ = resp.raise_for_status()
+
+
 def stop_instance(client: Client) -> None:
     resp = client.put(
         f"{INSTANCE_URL}/{INSTANCE}/state",
@@ -56,7 +136,7 @@ def stop_instance(client: Client) -> None:
 
     operation = resp.json()["operation"]
 
-    resp = client.get(f"{BASE_URL}{operation}/wait")
+    resp = client.get(f"{BASE_URL}{operation}/wait", timeout=60)
     _ = resp.raise_for_status()
 
 

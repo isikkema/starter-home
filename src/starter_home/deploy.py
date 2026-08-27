@@ -4,14 +4,14 @@ import subprocess
 import sys
 
 import click
+from httpx import Client
 
-from .config import INSTANCE
 from .files import ROOT
+from .incus import create_instance, get_instance, new_incus_client, start_instance
 
 IMAGE = "images:debian/13/cloud"
 IP_ADDRESS = "10.56.24.100"
 
-VM_CONFIG = ROOT / "virtual-machine" / "configuration.yaml"
 
 INVENTORY = ROOT / "automation" / "inventory" / "virtual-machine.yaml"
 PLAYBOOK = ROOT / "automation" / "setup-server.yaml"
@@ -128,65 +128,16 @@ def create_known_hosts() -> None:
 
 
 def ensure_vm_running() -> None:
-    vm_exists = check_vm_exists()
+    client = new_incus_client()
+    vm_exists = check_vm_exists(client)
     if not vm_exists:
-        create_vm()
+        create_instance(client)
     else:
-        start_vm()
+        start_instance(client)
 
 
-def check_vm_exists() -> bool:
-    proc = subprocess.run(
-        ["sudo", "incus", "info", INSTANCE],
-        capture_output=True,
-        text=True,
-        check=False,
-    )
-
-    return proc.returncode == 0 and len(proc.stdout) > 0
-
-
-def create_vm() -> None:
-    config = VM_CONFIG.read_text()
-
-    host_key = ""
-    for idx, line in enumerate(HOST_KEY.read_text().strip().splitlines()):
-        if idx == 0:
-            host_key += line
-        else:
-            host_key += "\n" + " " * 8 + line
-
-    config = config.replace("${SSH_HOST_PRIVATE_KEY}", host_key)
-    config = config.replace(
-        "${SSH_HOST_PUBLIC_KEY}", HOST_KEY_PUBLIC.read_text().strip()
-    )
-    config = config.replace("${SSH_PUBLIC_KEY}", SSH_KEY_PUBLIC.read_text().strip())
-
-    print("Creating VM")
-    _ = subprocess.run(
-        ["sudo", "incus", "launch", IMAGE, INSTANCE, "--vm"],
-        input=config,
-        stdout=subprocess.DEVNULL,
-        text=True,
-        check=True,
-    )
-
-
-def start_vm() -> None:
-    state = subprocess.run(
-        ["sudo", "incus", "list", INSTANCE, "--format", "csv", "-c", "s"],
-        capture_output=True,
-        text=True,
-        check=True,
-    ).stdout.strip()
-
-    if state.lower() != "running":
-        print("Starting VM")
-        _ = subprocess.run(
-            ["sudo", "incus", "start", INSTANCE],
-            stdout=subprocess.DEVNULL,
-            check=True,
-        )
+def check_vm_exists(client: Client) -> bool:
+    return get_instance(client) is not None
 
 
 def ensure_ansible_dependencies() -> None:
