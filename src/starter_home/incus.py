@@ -90,10 +90,7 @@ def create_instance(client: Client) -> None:
 
     config["config"]["cloud-init.user-data"] = cloud_init
 
-    print(cloud_init)
-
     data = dict(request_base, **config)
-    print(data)
     resp = client.post(
         INSTANCE_URL,
         json=data,
@@ -105,8 +102,6 @@ def create_instance(client: Client) -> None:
 
     resp = client.get(f"{BASE_URL}{operation}/wait")
     _ = resp.raise_for_status()
-
-    print("Created")
 
 
 def start_instance(client: Client) -> None:
@@ -123,25 +118,25 @@ def start_instance(client: Client) -> None:
     _ = resp.raise_for_status()
 
 
-def stop_instance(client: Client) -> None:
+def stop_instance(client: Client, error_on_missing: bool) -> None:
     resp = client.put(
         f"{INSTANCE_URL}/{INSTANCE}/state",
         json={"action": "stop"},
     )
 
-    if resp.status_code == 404:
+    if not error_on_missing and resp.status_code == 404:
         return
 
     _ = resp.raise_for_status()
 
     operation = resp.json()["operation"]
 
-    resp = client.get(f"{BASE_URL}{operation}/wait", timeout=60)
+    resp = client.get(f"{BASE_URL}{operation}/wait", timeout=180)
     _ = resp.raise_for_status()
 
 
 def delete_instance(client: Client) -> None:
-    stop_instance(client)
+    stop_instance(client, error_on_missing=False)
 
     resp = client.delete(f"{INSTANCE_URL}/{INSTANCE}")
     if resp.status_code == 404:
