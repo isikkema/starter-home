@@ -23,6 +23,15 @@
         register: local_backup_check
         failed_when: local_backup_check.rc != 0 and local_backup_check.rc != 10
 
+      - name: Initialize local backup repository
+        ansible.builtin.shell:
+            cmd: |
+                set -a
+                . {{ service_home }}/backup/local_backup.env
+                set +a
+                restic init
+        when: local_backup_check.rc == 10
+        
       - name: Start local backup service
         become_user: "{{ service_user }}"
         environment:

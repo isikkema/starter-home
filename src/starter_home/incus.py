@@ -30,7 +30,7 @@ class Instance:
 
 def new_incus_client() -> Client:
     transport = httpx.HTTPTransport(uds=INCUS_SOCKET)
-    return Client(transport=transport)
+    return Client(transport=transport, timeout=60)
 
 
 def get_instance(client: Client) -> Instance | None:
