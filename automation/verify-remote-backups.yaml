@@ -1,0 +1,16 @@
+- name: Verify restic backups
+  hosts: all
+  become: false
+  gather_facts: no
+
+  vars:
+      service_home: /home/starter-home
+
+  tasks:
+      - name: Verify remote backups
+        ansible.builtin.shell:
+            cmd: |
+                set -a
+                . {{ service_home }}/backup/remote_backup.env
+                set +a
+                restic check --read-data

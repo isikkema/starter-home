@@ -1,15 +1,18 @@
 import json
 import os
 import subprocess
+import sys
 
 import click
 
 from .files import ROOT
 
+ANSIBLE_CONFIG = ROOT / "automation" / "ansible.cfg"
 INVENTORY = ROOT / "automation" / "inventory" / "virtual-machine.yaml"
 CREATE_BACKUP_PLAYBOOK = ROOT / "automation" / "manual-backup.yaml"
 LIST_BACKUPS_PLAYBOOK = ROOT / "automation" / "list-backups.yaml"
-ANSIBLE_CONFIG = ROOT / "automation" / "ansible.cfg"
+VERIFY_LOCAL_BACKUPS_PLAYBOOK = ROOT / "automation" / "verify-local-backups.yaml"
+VERIFY_REMOTE_BACKUPS_PLAYBOOK = ROOT / "automation" / "verify-remote-backups.yaml"
 
 
 @click.group()
@@ -51,6 +54,73 @@ def list_() -> None:
         print(
             f"{backup['short_id']}  {backup['time']}  {backup['files_changed']:>3} files changed  {backup['total_files_processed']:>3} files total  {backup['data_added']:>11} B added  {backup['total_bytes_processed']:>11} B total"
         )
+
+
+@backup.group()
+def verify() -> None:
+    pass
+
+
+@verify.command()
+def local() -> None:
+    env = os.environ.copy()
+    env["ANSIBLE_CONFIG"] = str(ANSIBLE_CONFIG)
+    env["ANSIBLE_STDOUT_CALLBACK"] = "json"
+
+    proc = subprocess.run(
+        [
+            "ansible-playbook",
+            "-i",
+            str(INVENTORY),
+            str(VERIFY_LOCAL_BACKUPS_PLAYBOOK),
+        ],
+        env=env,
+        cwd=ROOT,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    ansible_out = json.loads(proc.stdout)
+    restic_out = ansible_out["plays"][0]["tasks"][0]["hosts"]["starter-home"]["stdout"]
+    restic_err = ansible_out["plays"][0]["tasks"][0]["hosts"]["starter-home"]["stderr"]
+    restic_rc = ansible_out["plays"][0]["tasks"][0]["hosts"]["starter-home"]["rc"]
+    print(restic_out)
+    if proc.returncode != 0:
+        print(restic_err)
+
+    sys.exit(restic_rc)
+
+
+@verify.command()
+def remote() -> None:
+    env = os.environ.copy()
+    env["ANSIBLE_CONFIG"] = str(ANSIBLE_CONFIG)
+    env["ANSIBLE_STDOUT_CALLBACK"] = "json"
+
+    proc = subprocess.run(
+        [
+            "ansible-playbook",
+            "-i",
+            str(INVENTORY),
+            str(VERIFY_REMOTE_BACKUPS_PLAYBOOK),
+        ],
+        env=env,
+        cwd=ROOT,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    ansible_out = json.loads(proc.stdout)
+    restic_out = ansible_out["plays"][0]["tasks"][0]["hosts"]["starter-home"]["stdout"]
+    restic_err = ansible_out["plays"][0]["tasks"][0]["hosts"]["starter-home"]["stderr"]
+    restic_rc = ansible_out["plays"][0]["tasks"][0]["hosts"]["starter-home"]["rc"]
+    print(restic_out)
+    if proc.returncode != 0:
+        print(restic_err)
+
+    sys.exit(restic_rc)
 
 
 def list_backups() -> tuple[list[dict[str, str]], list[dict[str, str]]]:
