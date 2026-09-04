@@ -1,0 +1,26 @@
+- name: List local restic backups
+  hosts: all
+  become: false
+  gather_facts: no
+
+  vars:
+      service_home: /home/starter-home
+
+  tasks:
+      - name: List local snapshots
+        ansible.builtin.shell:
+            cmd: |
+                set -a
+                . {{ service_home }}/backup/local_backup.env
+                set +a
+                restic snapshots --json
+        register: snapshots
+        failed_when: false
+
+      - name: Store local backups
+        ansible.builtin.set_fact:
+            backups: "{{ (snapshots.stdout | from_json) if snapshots.rc == 0 else [] }}"
+
+      - name: Print local backups
+        ansible.builtin.debug:
+            msg: "{{ backups }}"
