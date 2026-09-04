@@ -13,6 +13,8 @@ CREATE_BACKUP_PLAYBOOK = ROOT / "automation" / "manual-backup.yaml"
 LIST_BACKUPS_PLAYBOOK = ROOT / "automation" / "list-backups.yaml"
 VERIFY_LOCAL_BACKUPS_PLAYBOOK = ROOT / "automation" / "verify-local-backups.yaml"
 VERIFY_REMOTE_BACKUPS_PLAYBOOK = ROOT / "automation" / "verify-remote-backups.yaml"
+RESTORE_LOCAL_BACKUP_PLAYBOOK = ROOT / "automation" / "restore-local-backup.yaml"
+RESTORE_REMOTE_BACKUP_PLAYBOOK = ROOT / "automation" / "restore-remote-backup.yaml"
 
 
 @click.group()
@@ -61,8 +63,8 @@ def verify() -> None:
     pass
 
 
-@verify.command()
-def local() -> None:
+@verify.command("local")
+def verify_local() -> None:
     env = os.environ.copy()
     env["ANSIBLE_CONFIG"] = str(ANSIBLE_CONFIG)
     env["ANSIBLE_STDOUT_CALLBACK"] = "json"
@@ -92,8 +94,8 @@ def local() -> None:
     sys.exit(restic_rc)
 
 
-@verify.command()
-def remote() -> None:
+@verify.command("remote")
+def verify_remote() -> None:
     env = os.environ.copy()
     env["ANSIBLE_CONFIG"] = str(ANSIBLE_CONFIG)
     env["ANSIBLE_STDOUT_CALLBACK"] = "json"
@@ -120,7 +122,55 @@ def remote() -> None:
     if proc.returncode != 0:
         print(restic_err)
 
-    sys.exit(restic_rc)
+    if restic_rc != 0:
+        sys.exit(restic_rc)
+
+
+@backup.group()
+def restore():
+    pass
+
+
+@restore.command("local")
+@click.argument("snapshot_id", type=str)
+def restore_local(snapshot_id: str):
+    env = os.environ.copy()
+    env["ANSIBLE_CONFIG"] = str(ANSIBLE_CONFIG)
+
+    _ = subprocess.run(
+        [
+            "ansible-playbook",
+            "-i",
+            str(INVENTORY),
+            str(RESTORE_LOCAL_BACKUP_PLAYBOOK),
+            "--extra-vars",
+            f"snapshot_id={snapshot_id}",
+        ],
+        env=env,
+        cwd=ROOT,
+        check=True,
+    )
+
+
+@restore.command("remote")
+@click.argument("snapshot_id", type=str)
+def restore_remote(snapshot_id: str):
+    env = os.environ.copy()
+    env["ANSIBLE_CONFIG"] = str(ANSIBLE_CONFIG)
+
+    _ = subprocess.run(
+        [
+            "ansible-playbook",
+            "-i",
+            str(INVENTORY),
+            str(RESTORE_REMOTE_BACKUP_PLAYBOOK),
+            "--extra-vars",
+            f"snapshot_id={snapshot_id}",
+        ],
+        env=env,
+        cwd=ROOT,
+        check=True,
+    )
 
 
 def list_backups() -> tuple[list[dict[str, str]], list[dict[str, str]]]:

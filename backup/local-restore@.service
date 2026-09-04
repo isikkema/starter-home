@@ -1,0 +1,7 @@
+[Unit]
+Description=starter-home local restore (%i)
+
+[Service]
+Type=oneshot
+EnvironmentFile=%h/backup/local_backup.env
+ExecStart=/usr/bin/python3 %h/backup/restore.py %i %h/local_restore

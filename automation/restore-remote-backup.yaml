@@ -1,0 +1,19 @@
+- name: Restore starter-home from remote backup
+  hosts: all
+  become: false
+  gather_facts: no
+
+  vars:
+      service_user: starter-home
+      service_uid: 1000
+      service_home: /home/starter-home
+
+  tasks:
+      - name: Start remote restore service
+        become_user: "{{ service_user }}"
+        environment:
+            XDG_RUNTIME_DIR: "/run/user/{{ service_uid }}"
+        ansible.builtin.systemd_service:
+            name: remote-restore@{{ snapshot_id }}.service
+            state: started
+            scope: user
