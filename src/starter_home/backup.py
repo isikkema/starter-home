@@ -221,7 +221,6 @@ def list_local_backups() -> list[dict[str, str]]:
 
                 verbose_backups.sort(
                     key=lambda backup: backup["time"],
-                    reverse=True,
                 )
 
                 for backup in verbose_backups:
@@ -284,7 +283,6 @@ def list_remote_backups() -> list[dict[str, str]]:
 
                 verbose_backups.sort(
                     key=lambda backup: backup["time"],
-                    reverse=True,
                 )
 
                 for backup in verbose_backups:
