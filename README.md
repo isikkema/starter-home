@@ -21,7 +21,10 @@ cd starter-home
 ```
 
 4. Log out and log back in OR run:
-
+```
+source ~/.local/bin/env
+```
+and
 ```
 newgrp incus
 ```
