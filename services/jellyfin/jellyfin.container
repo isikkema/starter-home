@@ -11,6 +11,7 @@ Volume=jellyfin-cache.volume:/cache
 Volume=/host-storage/media:/media:ro
 
 [Service]
+ExecStartPre=mkdir -p /host-storage/media
 Restart=always
 TimeoutStartSec=300
 
