@@ -7,7 +7,7 @@ sudo apt-get update
 sudo apt-get install -y incus
 
 sudo incus admin init --minimal
-sudo incus network create starter-net ipv4.address=10.50.0.1/24 ipv4.nat=true
+sudo incus network create starter-net ipv4.address=10.50.0.1/24 ipv4.nat=true ipv6.address=none
 sudo gpasswd --add "$USER" incus
 sg incus -c 'incus list'
 sudo incus profile device remove default eth0 --project "user-$UID"
