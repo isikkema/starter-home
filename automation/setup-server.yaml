@@ -291,6 +291,12 @@
             state: absent
         when: local_backup_check.rc == 0 and restore_volumes | length > 0
 
+      - name: Check for remote backup config
+        ansible.builtin.stat:
+            path: "{{ service_home }}/backup/remote_backup.env"
+        register: remote_env
+        become: false
+        
       - name: Check for remote backup repository
         ansible.builtin.shell:
             cmd: |
@@ -300,10 +306,11 @@
                 restic cat config
         register: remote_backup_check
         failed_when: remote_backup_check.rc != 0 and remote_backup_check.rc != 10
+        when: remote_env.stat.exists
         become: false
 
       - ansible.builtin.set_fact:
-            do_remote_restore: "{{ local_backup_check.rc == 10 and remote_backup_check.rc == 0 and restore_volumes | length > 0 }}"
+            do_remote_restore: "{{ local_backup_check.rc == 10 and remote_env.stat.exists and remote_backup_check.rc == 0 and restore_volumes | length > 0 }}"
 
       - name: Restore from remote backup repository
         ansible.builtin.shell:
@@ -392,7 +399,7 @@
                 . {{ service_home }}/backup/remote_backup.env
                 set +a
                 restic init
-        when: remote_backup_check.rc == 10
+        when: remote_env.stat.exists and remote_backup_check.rc == 10
         become: false
 
       - name: Create user systemd directory
