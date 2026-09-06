@@ -10,7 +10,7 @@ from .files import ROOT
 from .incus import create_instance, get_instance, new_incus_client, start_instance
 
 IMAGE = "images:debian/13/cloud"
-IP_ADDRESS = "10.56.24.100"
+IP_ADDRESS = "10.50.0.100"
 
 
 INVENTORY = ROOT / "automation" / "inventory" / "virtual-machine.yaml"
