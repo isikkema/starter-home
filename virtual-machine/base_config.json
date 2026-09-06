@@ -1,7 +1,5 @@
 {
     "config": {
-        "limits.cpu": "4",
-        "limits.memory": "8GiB",
         "security.secureboot": "false",
         "cloud-init.user-data": "#cloud-config\n\nssh_keys:\n  ed25519_private: |\n    ${SSH_HOST_PRIVATE_KEY}\n  ed25519_public: ${SSH_HOST_PUBLIC_KEY}\n\nssh_deletekeys: false\n\nusers:\n  - name: starter-home\n    shell: /bin/bash\n    sudo: ALL=(ALL) NOPASSWD:ALL\n    ssh_authorized_keys:\n      - ${SSH_PUBLIC_KEY}\n\npackage_update: true\npackages:\n  - openssh-server\n  - python3\n\nwrite_files:\n  - path: /etc/ssh/sshd_config.d/70-disable-non-key-auth.conf\n    permissions: '0644'\n    content: |\n      PasswordAuthentication no\n      KbdInteractiveAuthentication no\n      UsePAM yes\n  \nruncmd:\n  - systemctl enable --now ssh\n"
     },
@@ -9,14 +7,13 @@
         "root": {
             "type": "disk",
             "path": "/",
-            "pool": "default",
-            "size": "10GiB"
+            "pool": "default"
         },
         "eth0": {
             "name": "eth0",
-            "network": "incusbr0",
+            "network": "starter-net",
             "type": "nic",
-            "ipv4.address": "10.56.24.100"
+            "ipv4.address": "10.50.0.100"
         },
         "http": {
             "type": "proxy",
@@ -26,7 +23,6 @@
         },
         "host-storage": {
             "type": "disk",
-            "source": "/home/isaac/starter-home/host-storage",
             "path": "/host-storage",
             "required": "true"
         }

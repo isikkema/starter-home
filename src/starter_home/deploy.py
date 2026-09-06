@@ -1,24 +1,25 @@
+import json
 import os
 import shutil
 import subprocess
 import sys
+from typing import Any
 
 import click
 from httpx import Client
 
-from .files import ROOT
+from .files import BASE_CONFIG, CUSTOM_CONFIG, ROOT
 from .incus import create_instance, get_instance, new_incus_client, start_instance
 
 IMAGE = "images:debian/13/cloud"
 IP_ADDRESS = "10.50.0.100"
 
+GENERATED_CONFIG = ROOT / "virtual-machine" / "generated_config.json"
 
 INVENTORY = ROOT / "automation" / "inventory" / "virtual-machine.yaml"
 PLAYBOOK = ROOT / "automation" / "setup-server.yaml"
 REQUIREMENTS = ROOT / "automation" / "requirements.yml"
 ANSIBLE_CONFIG = ROOT / "automation" / "ansible.cfg"
-
-HOST_STORAGE = ROOT / "host-storage"
 
 SECRETS = ROOT / "secrets"
 HOST_KEY = SECRETS / "ssh_host_ed25519_key"
@@ -32,12 +33,13 @@ KNOWN_HOSTS = SECRETS / "known_hosts"
 @click.command()
 def deploy() -> None:
     check_incus()
+    incus_config = get_incus_config()
 
     ensure_host_key()
     ensure_ssh_key()
     ensure_known_hosts()
 
-    ensure_vm_running()
+    ensure_vm_running(incus_config)
 
     ensure_ansible_dependencies()
     install_services()
@@ -47,6 +49,38 @@ def check_incus() -> None:
     if shutil.which("incus") is None:
         print("error: incus is required", file=sys.stderr)
         sys.exit(1)
+
+
+def get_incus_config() -> dict[str, Any]:
+    if GENERATED_CONFIG.exists():
+        with open(GENERATED_CONFIG, "r") as f:
+            return json.load(f)
+
+    return generate_incus_config()
+
+
+def generate_incus_config() -> dict[str, Any]:
+    if not CUSTOM_CONFIG.exists():
+        print("error: starter-home is not set up!", file=sys.stderr)
+        sys.exit(1)
+
+    with open(CUSTOM_CONFIG, "r") as f:
+        custom_config = json.load(f)
+
+    with open(BASE_CONFIG, "r") as f:
+        generated_config = json.load(f)
+
+    generated_config["config"]["limits.cpu"] = str(custom_config["cpus"])
+    generated_config["config"]["limits.memory"] = custom_config["memory"]
+    generated_config["devices"]["root"]["size"] = custom_config["disk_size"]
+    generated_config["devices"]["host-storage"]["source"] = custom_config[
+        "host-storage"
+    ]
+
+    with open(GENERATED_CONFIG, "w") as f:
+        json.dump(generated_config, f, indent=4)
+
+    return generated_config
 
 
 def ensure_host_key() -> None:
@@ -127,11 +161,11 @@ def create_known_hosts() -> None:
     )
 
 
-def ensure_vm_running() -> None:
+def ensure_vm_running(incus_config: dict[str, Any]) -> None:
     client = new_incus_client()
     vm_exists = check_vm_exists(client)
     if not vm_exists:
-        create_instance(client)
+        create_instance(client, incus_config)
     else:
         start_instance(client)
 
@@ -152,6 +186,7 @@ def install_services() -> None:
     env = os.environ.copy()
     env["ANSIBLE_CONFIG"] = str(ANSIBLE_CONFIG)
 
+    print(ANSIBLE_CONFIG)
     print("Installing services into VM")
     _ = subprocess.run(
         [
