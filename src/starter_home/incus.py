@@ -1,13 +1,14 @@
-import json
+import os
+from copy import deepcopy
 from typing import Any
 
 import httpx
-from httpx import Client
+from httpx import Client, HTTPStatusError
 
 from .config import INSTANCE
 from .files import ROOT
 
-INCUS_SOCKET = "/var/lib/incus/unix.socket"
+INCUS_SOCKET = "/var/lib/incus/unix.socket.user"
 
 BASE_URL = "http://incus"
 INSTANCE_URL = BASE_URL + "/1.0/instances"
@@ -29,8 +30,10 @@ class Instance:
 
 
 def new_incus_client() -> Client:
+    uid = os.getuid()
+    project = f"user-{uid}"
     transport = httpx.HTTPTransport(uds=INCUS_SOCKET)
-    return Client(transport=transport, timeout=60)
+    return Client(transport=transport, timeout=60, params={"project": project})
 
 
 def get_instance(client: Client) -> Instance | None:
@@ -38,7 +41,11 @@ def get_instance(client: Client) -> Instance | None:
     if resp.status_code == 404:
         return None
 
-    instance_json = resp.raise_for_status().json()
+    try:
+        instance_json = resp.raise_for_status().json()
+    except HTTPStatusError:
+        print(resp.text)
+        raise
 
     metadata = instance_json["metadata"]
     status = metadata["status"]
@@ -56,7 +63,7 @@ def get_instance(client: Client) -> Instance | None:
     return Instance(status, ip_address)
 
 
-def create_instance(client: Client) -> None:
+def create_instance(client: Client, incus_config: dict[str, Any]) -> None:
     request_base = {
         "name": INSTANCE,
         "type": "virtual-machine",
@@ -69,8 +76,7 @@ def create_instance(client: Client) -> None:
         },
     }
 
-    with open(VM_CONFIG, "r") as f:
-        config: dict[str, Any] = json.load(f)
+    config = deepcopy(incus_config)
 
     host_key = ""
     for idx, line in enumerate(HOST_KEY.read_text().strip().splitlines()):
@@ -96,12 +102,23 @@ def create_instance(client: Client) -> None:
         json=data,
     )
 
-    _ = resp.raise_for_status()
+    try:
+        _ = resp.raise_for_status()
+    except HTTPStatusError:
+        print("Error:")
+        print(resp.text)
+        raise
 
     operation = resp.json()["operation"]
 
     resp = client.get(f"{BASE_URL}{operation}/wait")
-    _ = resp.raise_for_status()
+
+    try:
+        _ = resp.raise_for_status()
+    except HTTPStatusError:
+        print("Error:")
+        print(resp.text)
+        raise
 
 
 def start_instance(client: Client) -> None:
@@ -110,12 +127,23 @@ def start_instance(client: Client) -> None:
         json={"action": "start"},
     )
 
-    _ = resp.raise_for_status()
+    try:
+        _ = resp.raise_for_status()
+    except HTTPStatusError:
+        print("Error:")
+        print(resp.text)
+        raise
 
     operation = resp.json()["operation"]
 
     resp = client.get(f"{BASE_URL}{operation}/wait")
-    _ = resp.raise_for_status()
+
+    try:
+        _ = resp.raise_for_status()
+    except HTTPStatusError:
+        print("Error:")
+        print(resp.text)
+        raise
 
 
 def stop_instance(client: Client, error_on_missing: bool) -> None:
@@ -127,12 +155,23 @@ def stop_instance(client: Client, error_on_missing: bool) -> None:
     if not error_on_missing and resp.status_code == 404:
         return
 
-    _ = resp.raise_for_status()
+    try:
+        _ = resp.raise_for_status()
+    except HTTPStatusError:
+        print("Error:")
+        print(resp.text)
+        raise
 
     operation = resp.json()["operation"]
 
     resp = client.get(f"{BASE_URL}{operation}/wait", timeout=180)
-    _ = resp.raise_for_status()
+
+    try:
+        _ = resp.raise_for_status()
+    except HTTPStatusError:
+        print("Error:")
+        print(resp.text)
+        raise
 
 
 def delete_instance(client: Client) -> None:
@@ -142,4 +181,9 @@ def delete_instance(client: Client) -> None:
     if resp.status_code == 404:
         return
 
-    _ = resp.raise_for_status()
+    try:
+        _ = resp.raise_for_status()
+    except HTTPStatusError:
+        print("Error:")
+        print(resp.text)
+        raise
