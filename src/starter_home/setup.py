@@ -44,37 +44,34 @@ def setup() -> None:
         else:
             cpus = int(cpus)
 
+    print("Memory and Disk Size units must be specified GiB or MiB")
+    print("Example: 8GiB")
+
     available_mem: int = psutil.virtual_memory().available
     gib = 1024 * 1024 * 1024
-    available_gib = available_mem / gib
+    available_gib = available_mem // gib
     match available_gib:
-        case n if n < 2:
+        case n if n <= 1:
             recommended_gib = None
-        case n if n < 5:
+        case n if n <= 4:
             recommended_gib = available_gib - 1
-        case n if n < 6:
-            recommended_gib = 4
-        case n if n < 10:
+        case n if n <= 8:
             recommended_gib = available_gib - 2
-        case n if n < 12:
-            recommended_gib = 8
         case n:
-            recommended_gib = available_gib - 4
+            recommended_gib = available_gib - 3
 
     if recommended_gib is None:
-        mem = int(input("GiBs of Memory: "))
+        mem = input("Memory: ")
     else:
-        mem = input(f"GiBs of Memory [{recommended_gib}]: ")
+        mem = input(f"Memory [{recommended_gib}GiB]: ")
         if len(mem.strip()) == 0:
-            mem = recommended_gib
-        else:
-            mem = int(mem)
+            mem = f"{recommended_gib}GiB"
 
-    disk_size = int(input("GiBs of Disk Size: "))
+    disk_size = input("Disk Size: ")
 
     print(f"CPUs: {cpus}")
-    print(f"Memory: {mem}GiB")
-    print(f"Disk Size: {disk_size}GiB")
+    print(f"Memory: {mem}")
+    print(f"Disk Size: {disk_size}")
 
     while True:
         answer = input("Does this look right? y/n: ")
@@ -107,8 +104,8 @@ def setup() -> None:
         json.dump(
             {
                 "cpus": cpus,
-                "memory": f"{mem}GiB",
-                "disk_size": f"{disk_size}GiB",
+                "memory": mem,
+                "disk_size": disk_size,
                 "host-storage": str(HOST_STORAGE),
             },
             f,
