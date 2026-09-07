@@ -84,6 +84,8 @@ def generate_incus_config() -> dict[str, Any]:
 
 
 def ensure_host_key() -> None:
+    SECRETS.mkdir(mode=0o700, exist_ok=True)
+    
     if HOST_KEY.exists():
         if HOST_KEY_PUBLIC.exists():
             return
@@ -186,7 +188,6 @@ def install_services() -> None:
     env = os.environ.copy()
     env["ANSIBLE_CONFIG"] = str(ANSIBLE_CONFIG)
 
-    print(ANSIBLE_CONFIG)
     print("Installing services into VM")
     _ = subprocess.run(
         [
