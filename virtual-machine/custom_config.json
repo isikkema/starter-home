@@ -1,0 +1,6 @@
+{
+    "cpus": 9,
+    "memory": "11GiB",
+    "disk_size": "10GiB",
+    "host-storage": "/home/isaac/starter-home/host-storage"
+}

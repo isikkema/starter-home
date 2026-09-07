@@ -4,7 +4,6 @@ Description=Jellyfin media server
 [Container]
 ContainerName=jellyfin
 Image=docker.io/jellyfin/jellyfin:latest
-#PublishPort=127.0.0.1:18096:8096
 Network=web.network
 Volume=jellyfin-config.volume:/config
 Volume=jellyfin-cache.volume:/cache
