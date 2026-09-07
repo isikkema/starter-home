@@ -50,75 +50,16 @@ starter-home setup
 starter-home deploy
 ```
 
+---
+
+> [!NOTE]
+> After your server is up and running, consider creating your own git repo and pushing this directory there. Include everything EXCEPT for the `local_backup.env` and `remote_backend.env` files, the secrets directory, and any files that contain any secret information in your defined services.
+
 ## Defining Services
 
 Services are defined by creating [quadlet](https://docs.podman.io/en/latest/markdown/podman-systemd.unit.5.html) files in a subdirectory of the `services/` directory.
 
-The following example shows how to define a service:
-
-```
-services/
-└── caddy
-    ├── caddy-config.volume
-    ├── caddy.container
-    ├── caddy-data.volume
-    ├── resources
-    │   └── Caddyfile
-    └── web.network
-```
-
-`caddy.container`
-
-```
-[Unit]
-Description=Caddy reverse proxy
-
-[Container]
-ContainerName=caddy
-Image=docker.io/caddy:2
-PublishPort=8443:443
-PublishPort=8080:80
-Network=web.network
-Volume=caddy-config.volume:/config
-Volume=caddy-data.volume:/data
-Volume=./resources/Caddyfile:/etc/caddy/Caddyfile:ro
-
-[Service]
-Restart=always
-TimeoutStartSec=300
-
-[Install]
-WantedBy=default.target
-```
-
-`caddy-config.volume`
-
-```
-[Volume]
-VolumeName=caddy-config
-```
-
-`caddy-data.volume`
-
-```
-[Volume]
-VolumeName=caddy-data
-```
-
-`web.network`
-
-```
-[Network]
-NetworkName=web
-```
-
-`resources/Caddyfile`
-
-```
-http://other-service.localhost {
-    reverse_proxy other-service:1234
-}
-```
+Examples of service definitions can be found in [examples/](examples/).
 
 ## Backups
 
@@ -129,6 +70,8 @@ They are encrypted with a user-defined password, and can be stored locally and/o
 
 By default, starter-home backs up to `host-storage/backup/`. This location along with the backup password is specified in `backup/local_backup.env`, which is generated during `starter-home setup`.
 
+When deploying for the first time, starter-home will automatically restore from a local backup if it exists and `backup/local_backup.env` is defined.
+
 ### Remote Backups
 
 You can also make starter-home automatically back up to a remote location. This is highly recommended.
@@ -137,3 +80,5 @@ To do this, create `backup/remote_backup.env` with the necessary environment var
 
 A list of restic's supported environment variables can be found [here](https://restic.readthedocs.io/en/stable/075_scripting.html#environment-variables).  
 Guides for setting up restic repositories can be found [here](https://restic.readthedocs.io/en/stable/030_preparing_a_new_repo.html).
+
+When deploying for the first time, starter-home will automatically restore from a remote backup if a local backup does not exist and `backup/remote_backup.env` is defined.
