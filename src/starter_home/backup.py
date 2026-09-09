@@ -4,6 +4,13 @@ import subprocess
 import sys
 
 import click
+from pyinfra.api.connect import connect_all
+from pyinfra.api.inventory import Inventory
+from pyinfra.api.state import State
+from pyinfra.connectors import ssh
+
+from starter_home.deploy import KNOWN_HOSTS
+from starter_home.incus import SSH_KEY
 
 from .files import ROOT
 
@@ -183,65 +190,49 @@ def restore_remote(snapshot_id: str):
 
 
 def list_local_backups() -> list[dict[str, str]]:
-    env = os.environ.copy()
-    env["ANSIBLE_CONFIG"] = str(ANSIBLE_CONFIG)
-    env["ANSIBLE_STDOUT_CALLBACK"] = "json"
+    inventory = Inventory(
+        (
+            ["10.50.0.100"],
+            {
+                "ssh_user": "starter-home",
+                "ssh_key": "secrets/id_ed25519",
+                "ssh_known_hosts_file": "secrets/known_hosts",
+                "ssh_strict_host_key_checking": "yes",
+            },
+        )
+    )
+    state = State(inventory=inventory)
+    connect_all(state)
 
-    proc = subprocess.run(
-        [
-            "ansible-playbook",
-            "-i",
-            str(INVENTORY),
-            str(LIST_LOCAL_BACKUPS_PLAYBOOK),
-        ],
-        env=env,
-        cwd=ROOT,
-        capture_output=True,
-        text=True,
-        check=True,
+    server = inventory.get_host("10.50.0.100")
+    _, output = server.run_shell_command(
+        """
+        set -a
+        . /home/starter-home/backup/local_backup.env
+        set +a
+        restic snapshots --json
+        """
     )
 
-    out = json.loads(proc.stdout)
+    verbose_backups = json.loads(output.stdout)
+    verbose_backups.sort(
+        key=lambda backup: backup["time"],
+    )
 
-    for play in out["plays"]:
-        for task in play["tasks"]:
-            hosts = task.get("hosts")
-            if hosts is None:
-                continue
+    backups = []
+    for backup in verbose_backups:
+        backups.append(
+            {
+                "time": backup["time"],
+                "short_id": backup["short_id"],
+                "files_changed": backup["summary"]["files_changed"],
+                "total_files_processed": backup["summary"]["total_files_processed"],
+                "data_added": backup["summary"]["data_added"],
+                "total_bytes_processed": backup["summary"]["total_bytes_processed"],
+            }
+        )
 
-            for host in hosts.values():
-                facts = host.get("ansible_facts")
-                if facts is None:
-                    continue
-
-                backups = []
-                verbose_backups = facts.get("backups")
-                if verbose_backups is None:
-                    continue
-
-                verbose_backups.sort(
-                    key=lambda backup: backup["time"],
-                )
-
-                for backup in verbose_backups:
-                    backups.append(
-                        {
-                            "time": backup["time"],
-                            "short_id": backup["short_id"],
-                            "files_changed": backup["summary"]["files_changed"],
-                            "total_files_processed": backup["summary"][
-                                "total_files_processed"
-                            ],
-                            "data_added": backup["summary"]["data_added"],
-                            "total_bytes_processed": backup["summary"][
-                                "total_bytes_processed"
-                            ],
-                        }
-                    )
-
-                return backups
-
-    return []
+    return backups
 
 
 def list_remote_backups() -> list[dict[str, str]]:
