@@ -8,12 +8,10 @@ from pyinfra.api.connect import connect_all
 from pyinfra.api.host import Host
 from pyinfra.api.inventory import Inventory
 from pyinfra.api.state import State
-from pyinfra.connectors import ssh
 
-from starter_home.deploy import KNOWN_HOSTS
-from starter_home.incus import SSH_KEY
-
+from .deploy import KNOWN_HOSTS
 from .files import ROOT
+from .incus import SSH_KEY
 
 ANSIBLE_CONFIG = ROOT / "automation" / "ansible.cfg"
 INVENTORY = ROOT / "automation" / "inventory" / "virtual-machine.yaml"
@@ -196,8 +194,8 @@ def server_connect() -> tuple[State, Host]:
             ["10.50.0.100"],
             {
                 "ssh_user": "starter-home",
-                "ssh_key": "secrets/id_ed25519",
-                "ssh_known_hosts_file": "secrets/known_hosts",
+                "ssh_key": str(SSH_KEY),
+                "ssh_known_hosts_file": str(KNOWN_HOSTS),
                 "ssh_strict_host_key_checking": "yes",
             },
         )
