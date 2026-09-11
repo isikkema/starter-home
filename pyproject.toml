@@ -10,9 +10,9 @@ requires-python = ">=3.11"
 dependencies = [
     "ansible-core>=2.19.12",
     "click>=8.4.2",
+    "fabric>=3.2.3",
     "httpx>=0.28.1",
     "psutil>=7.2.2",
-    "pyinfra>=3.10.0",
 ]
 
 [project.scripts]

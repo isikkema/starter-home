@@ -4,10 +4,10 @@ import subprocess
 import sys
 
 import click
-from pyinfra.api.connect import connect_all
-from pyinfra.api.host import Host
-from pyinfra.api.inventory import Inventory
-from pyinfra.api.state import State
+from fabric import Config, Connection
+from fabric.config import SSHConfig
+from invoke.runners import Result
+from paramiko.client import RejectPolicy
 
 from .deploy import KNOWN_HOSTS
 from .files import ROOT
@@ -16,8 +16,6 @@ from .incus import SSH_KEY
 ANSIBLE_CONFIG = ROOT / "automation" / "ansible.cfg"
 INVENTORY = ROOT / "automation" / "inventory" / "virtual-machine.yaml"
 CREATE_BACKUP_PLAYBOOK = ROOT / "automation" / "manual-backup.yaml"
-LIST_LOCAL_BACKUPS_PLAYBOOK = ROOT / "automation" / "list-local-backups.yaml"
-LIST_REMOTE_BACKUPS_PLAYBOOK = ROOT / "automation" / "list-remote-backups.yaml"
 VERIFY_LOCAL_BACKUPS_PLAYBOOK = ROOT / "automation" / "verify-local-backups.yaml"
 VERIFY_REMOTE_BACKUPS_PLAYBOOK = ROOT / "automation" / "verify-remote-backups.yaml"
 RESTORE_LOCAL_BACKUP_PLAYBOOK = ROOT / "automation" / "restore-local-backup.yaml"
@@ -188,35 +186,41 @@ def restore_remote(snapshot_id: str):
     )
 
 
-def server_connect() -> tuple[State, Host]:
-    inventory = Inventory(
-        (
-            ["10.50.0.100"],
-            {
-                "ssh_user": "starter-home",
-                "ssh_key": str(SSH_KEY),
-                "ssh_known_hosts_file": str(KNOWN_HOSTS),
-                "ssh_strict_host_key_checking": "yes",
-            },
-        )
+def server_connect() -> Connection:
+    ssh_config = SSHConfig.from_text(f"""
+    Host 10.50.0.100
+        User starter-home
+        IdentityFile {SSH_KEY!s}
+        IdentitiesOnly yes
+        ConnectTimeout 10
+    """)
+
+    config = Config(
+        ssh_config=ssh_config,
     )
-    state = State(inventory=inventory)
-    connect_all(state)
 
-    server = inventory.get_host("10.50.0.100")
+    server = Connection(
+        "10.50.0.100",
+        config=config,
+    )
 
-    return state, server
+    if server.client is not None:
+        server.client.set_missing_host_key_policy(RejectPolicy())
+        server.client.load_host_keys(str(KNOWN_HOSTS))
+
+    return server
 
 
 def list_local_backups() -> list[dict[str, str]]:
-    _, server = server_connect()
-    _, output = server.run_shell_command(
+    server = server_connect()
+    output: Result = server.run(
         """
         set -a
         . /home/starter-home/backup/local_backup.env
         set +a
         restic snapshots --json
-        """
+        """,
+        hide=True,
     )
 
     verbose_backups = json.loads(output.stdout)
@@ -241,14 +245,15 @@ def list_local_backups() -> list[dict[str, str]]:
 
 
 def list_remote_backups() -> list[dict[str, str]]:
-    _, server = server_connect()
-    _, output = server.run_shell_command(
+    server = server_connect()
+    output: Result = server.run(
         """
         set -a
         . /home/starter-home/backup/remote_backup.env
         set +a
         restic snapshots --json
-        """
+        """,
+        hide=True,
     )
 
     verbose_backups = json.loads(output.stdout)
