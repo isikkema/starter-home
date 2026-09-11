@@ -16,8 +16,6 @@ from .incus import SSH_KEY
 ANSIBLE_CONFIG = ROOT / "automation" / "ansible.cfg"
 INVENTORY = ROOT / "automation" / "inventory" / "virtual-machine.yaml"
 CREATE_BACKUP_PLAYBOOK = ROOT / "automation" / "manual-backup.yaml"
-VERIFY_LOCAL_BACKUPS_PLAYBOOK = ROOT / "automation" / "verify-local-backups.yaml"
-VERIFY_REMOTE_BACKUPS_PLAYBOOK = ROOT / "automation" / "verify-remote-backups.yaml"
 RESTORE_LOCAL_BACKUP_PLAYBOOK = ROOT / "automation" / "restore-local-backup.yaml"
 RESTORE_REMOTE_BACKUP_PLAYBOOK = ROOT / "automation" / "restore-remote-backup.yaml"
 
@@ -78,65 +76,36 @@ def verify() -> None:
 
 @verify.command("local")
 def verify_local() -> None:
-    env = os.environ.copy()
-    env["ANSIBLE_CONFIG"] = str(ANSIBLE_CONFIG)
-    env["ANSIBLE_STDOUT_CALLBACK"] = "json"
-
-    proc = subprocess.run(
-        [
-            "ansible-playbook",
-            "-i",
-            str(INVENTORY),
-            str(VERIFY_LOCAL_BACKUPS_PLAYBOOK),
-        ],
-        env=env,
-        cwd=ROOT,
-        capture_output=True,
-        text=True,
-        check=False,
+    server = server_connect()
+    output: Result = server.run(
+        """
+        set -a
+        . /home/starter-home/backup/local_backup.env
+        set +a
+        restic check --read-data
+        """,
+        warn=True,
     )
 
-    ansible_out = json.loads(proc.stdout)
-    restic_out = ansible_out["plays"][0]["tasks"][0]["hosts"]["starter-home"]["stdout"]
-    restic_err = ansible_out["plays"][0]["tasks"][0]["hosts"]["starter-home"]["stderr"]
-    restic_rc = ansible_out["plays"][0]["tasks"][0]["hosts"]["starter-home"]["rc"]
-    print(restic_out)
-    if proc.returncode != 0:
-        print(restic_err)
-
-    sys.exit(restic_rc)
+    if output.failed:
+        sys.exit(output.return_code)
 
 
 @verify.command("remote")
 def verify_remote() -> None:
-    env = os.environ.copy()
-    env["ANSIBLE_CONFIG"] = str(ANSIBLE_CONFIG)
-    env["ANSIBLE_STDOUT_CALLBACK"] = "json"
-
-    proc = subprocess.run(
-        [
-            "ansible-playbook",
-            "-i",
-            str(INVENTORY),
-            str(VERIFY_REMOTE_BACKUPS_PLAYBOOK),
-        ],
-        env=env,
-        cwd=ROOT,
-        capture_output=True,
-        text=True,
-        check=False,
+    server = server_connect()
+    output: Result = server.run(
+        """
+        set -a
+        . /home/starter-home/backup/remote_backup.env
+        set +a
+        restic check --read-data
+        """,
+        warn=True,
     )
 
-    ansible_out = json.loads(proc.stdout)
-    restic_out = ansible_out["plays"][0]["tasks"][0]["hosts"]["starter-home"]["stdout"]
-    restic_err = ansible_out["plays"][0]["tasks"][0]["hosts"]["starter-home"]["stderr"]
-    restic_rc = ansible_out["plays"][0]["tasks"][0]["hosts"]["starter-home"]["rc"]
-    print(restic_out)
-    if proc.returncode != 0:
-        print(restic_err)
-
-    if restic_rc != 0:
-        sys.exit(restic_rc)
+    if output.failed:
+        sys.exit(output.return_code)
 
 
 @backup.group()
