@@ -18,8 +18,6 @@ from .incus import SSH_KEY
 ANSIBLE_CONFIG = ROOT / "automation" / "ansible.cfg"
 INVENTORY = ROOT / "automation" / "inventory" / "virtual-machine.yaml"
 CREATE_BACKUP_PLAYBOOK = ROOT / "automation" / "manual-backup.yaml"
-RESTORE_LOCAL_BACKUP_PLAYBOOK = ROOT / "automation" / "restore-local-backup.yaml"
-RESTORE_REMOTE_BACKUP_PLAYBOOK = ROOT / "automation" / "restore-remote-backup.yaml"
 
 
 @click.group()
