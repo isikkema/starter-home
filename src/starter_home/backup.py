@@ -1,6 +1,4 @@
 import json
-import os
-import subprocess
 import sys
 from pathlib import Path
 
@@ -12,12 +10,7 @@ from paramiko.client import RejectPolicy
 
 from .backup_restore import restore_backup
 from .deploy import KNOWN_HOSTS
-from .files import ROOT
 from .incus import SSH_KEY
-
-ANSIBLE_CONFIG = ROOT / "automation" / "ansible.cfg"
-INVENTORY = ROOT / "automation" / "inventory" / "virtual-machine.yaml"
-CREATE_BACKUP_PLAYBOOK = ROOT / "automation" / "manual-backup.yaml"
 
 
 @click.group()
@@ -27,20 +20,54 @@ def backup() -> None:
 
 @backup.command()
 def create() -> None:
-    env = os.environ.copy()
-    env["ANSIBLE_CONFIG"] = str(ANSIBLE_CONFIG)
+    server = server_connect()
 
-    print("Creating backup")
-    _ = subprocess.run(
-        [
-            "ansible-playbook",
-            "-i",
-            str(INVENTORY),
-            str(CREATE_BACKUP_PLAYBOOK),
-        ],
-        env=env,
-        cwd=ROOT,
-        check=True,
+    server.run(
+        """
+        set -a
+        . /home/starter-home/backup/local_backup.env
+        set +a
+        restic cat config
+        """,
+        hide=True,
+    )
+
+    server.run(
+        "systemctl --user start local-backup.service",
+        env={"XDG_RUNTIME_DIR": "/run/user/1000"},
+    )
+
+    output: Result = server.run(
+        """
+        set -a
+        . /home/starter-home/backup/remote_backup.env
+        set +a
+        restic cat config
+        """,
+        hide=True,
+        warn=True,
+    )
+
+    match output.return_code:
+        case 0:
+            pass
+        case 10:
+            server.run(
+                """
+                set -a
+                . /home/starter-home/backup/remote_backup.env
+                set +a
+                restic init
+                """,
+                hide=True,
+            )
+        case n:
+            print(f"Failed to create remote backup:\n{output.stderr}")
+            sys.exit(n)
+
+    server.run(
+        "systemctl --user start remote-backup.service",
+        env={"XDG_RUNTIME_DIR": "/run/user/1000"},
     )
 
 
