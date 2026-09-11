@@ -1,7 +1,0 @@
-[Unit]
-Description=starter-home remote restore (%i)
-
-[Service]
-Type=oneshot
-EnvironmentFile=%h/backup/remote_backup.env
-ExecStart=/usr/bin/python3 %h/backup/restore.py %i %h/remote_restore

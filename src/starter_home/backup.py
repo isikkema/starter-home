@@ -2,6 +2,7 @@ import json
 import os
 import subprocess
 import sys
+from pathlib import Path
 
 import click
 from fabric import Config, Connection
@@ -9,6 +10,7 @@ from fabric.config import SSHConfig
 from invoke.runners import Result
 from paramiko.client import RejectPolicy
 
+from .backup_restore import restore_backup
 from .deploy import KNOWN_HOSTS
 from .files import ROOT
 from .incus import SSH_KEY
@@ -116,43 +118,21 @@ def restore():
 @restore.command("local")
 @click.argument("snapshot_id", type=str)
 def restore_local(snapshot_id: str):
-    env = os.environ.copy()
-    env["ANSIBLE_CONFIG"] = str(ANSIBLE_CONFIG)
+    server = server_connect()
 
-    _ = subprocess.run(
-        [
-            "ansible-playbook",
-            "-i",
-            str(INVENTORY),
-            str(RESTORE_LOCAL_BACKUP_PLAYBOOK),
-            "--extra-vars",
-            f"snapshot_id={snapshot_id}",
-        ],
-        env=env,
-        cwd=ROOT,
-        check=True,
-    )
+    restore_dir = Path("/home/starter-home/local_restore")
+    env_file = Path("/home/starter-home/backup/local_backup.env")
+    restore_backup(server, restore_dir, env_file, snapshot_id)
 
 
 @restore.command("remote")
 @click.argument("snapshot_id", type=str)
 def restore_remote(snapshot_id: str):
-    env = os.environ.copy()
-    env["ANSIBLE_CONFIG"] = str(ANSIBLE_CONFIG)
+    server = server_connect()
 
-    _ = subprocess.run(
-        [
-            "ansible-playbook",
-            "-i",
-            str(INVENTORY),
-            str(RESTORE_REMOTE_BACKUP_PLAYBOOK),
-            "--extra-vars",
-            f"snapshot_id={snapshot_id}",
-        ],
-        env=env,
-        cwd=ROOT,
-        check=True,
-    )
+    restore_dir = Path("/home/starter-home/remote_restore")
+    env_file = Path("/home/starter-home/backup/remote_backup.env")
+    restore_backup(server, restore_dir, env_file, snapshot_id)
 
 
 def server_connect() -> Connection:
