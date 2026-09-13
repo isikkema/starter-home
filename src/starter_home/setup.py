@@ -97,6 +97,8 @@ def setup() -> None:
         print("A remote backup location is highly recommended.")
         print("See the Remote Backups section in the README.")
 
+    HOST_STORAGE.mkdir(mode=0o700, exist_ok=True)
+
     with open(CUSTOM_CONFIG, "w") as f:
         json.dump(
             {
