@@ -1,5 +1,0 @@
-all:
-  hosts:
-    starter-home:
-      ansible_host: 10.50.0.100
-      ansible_user: starter-home

@@ -5,12 +5,9 @@ from getpass import getpass
 import click
 import psutil
 
-from .files import CUSTOM_CONFIG, ROOT
+from .files import CUSTOM_CONFIG, LOCAL_BACKUP_ENV, REMOTE_BACKUP_ENV, ROOT
 
 HOST_STORAGE = ROOT / "host-storage"
-
-LOCAL_BACKUP_ENV = ROOT / "backup" / "local_backup.env"
-REMOTE_BACKUP_ENV = ROOT / "backup" / "remote_backup.env"
 
 
 @click.command()

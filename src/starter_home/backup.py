@@ -3,14 +3,10 @@ import sys
 from pathlib import Path
 
 import click
-from fabric import Config, Connection
-from fabric.config import SSHConfig
 from invoke.runners import Result
-from paramiko.client import RejectPolicy
 
 from .backup_restore import restore_backup
-from .deploy import KNOWN_HOSTS
-from .incus import SSH_KEY
+from .server import server_connect
 
 
 @click.group()
@@ -158,31 +154,6 @@ def restore_remote(snapshot_id: str):
     restore_dir = Path("/home/starter-home/remote_restore")
     env_file = Path("/home/starter-home/backup/remote_backup.env")
     restore_backup(server, restore_dir, env_file, snapshot_id)
-
-
-def server_connect() -> Connection:
-    ssh_config = SSHConfig.from_text(f"""
-    Host 10.50.0.100
-        User starter-home
-        IdentityFile {SSH_KEY!s}
-        IdentitiesOnly yes
-        ConnectTimeout 10
-    """)
-
-    config = Config(
-        ssh_config=ssh_config,
-    )
-
-    server = Connection(
-        "10.50.0.100",
-        config=config,
-    )
-
-    if server.client is not None:
-        server.client.set_missing_host_key_policy(RejectPolicy())
-        server.client.load_host_keys(str(KNOWN_HOSTS))
-
-    return server
 
 
 def list_local_backups() -> list[dict[str, str]]:

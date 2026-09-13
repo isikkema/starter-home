@@ -6,7 +6,7 @@ import httpx
 from httpx import Client, HTTPStatusError
 
 from .config import INSTANCE
-from .files import ROOT
+from .files import HOST_KEY, HOST_KEY_PUBLIC, ROOT, SSH_KEY_PUBLIC
 
 INCUS_SOCKET = "/var/lib/incus/unix.socket.user"
 
@@ -15,12 +15,6 @@ INSTANCE_URL = BASE_URL + "/1.0/instances"
 
 IMAGE = "debian/13/cloud"
 VM_CONFIG = ROOT / "virtual-machine" / "config.json"
-
-SECRETS = ROOT / "secrets"
-HOST_KEY = SECRETS / "ssh_host_ed25519_key"
-HOST_KEY_PUBLIC = SECRETS / "ssh_host_ed25519_key.pub"
-SSH_KEY = SECRETS / "id_ed25519"
-SSH_KEY_PUBLIC = SECRETS / "id_ed25519.pub"
 
 
 class Instance:

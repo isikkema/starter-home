@@ -8,7 +8,6 @@ authors = [
 ]
 requires-python = ">=3.11"
 dependencies = [
-    "ansible-core>=2.19.12",
     "click>=8.4.2",
     "fabric>=3.2.3",
     "httpx>=0.28.1",
