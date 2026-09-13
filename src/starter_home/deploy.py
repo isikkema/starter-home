@@ -13,6 +13,7 @@ from httpx import Client
 from invoke.runners import Result
 from paramiko.ssh_exception import NoValidConnectionsError
 
+from starter_home.backup import get_local_backup_env, get_remote_backup_env
 from starter_home.server import server_connect
 
 from .files import (
@@ -333,38 +334,27 @@ def install_services() -> None:
 
     restore_volumes = after_volumes - before_volumes
 
-    print(f"{after_volumes} - {before_volumes} = {restore_volumes}")
-
     server.run("mkdir -p /home/starter-home/backup", echo=True)
     backup_files = BACKUP.glob("*")
     for file in backup_files:
         server.put(f"{file!s}", "/home/starter-home/backup/")
 
+    local_backup_env = get_local_backup_env()
+
     output: Result = server.run(
-        """
-        set -a
-        . /home/starter-home/backup/local_backup.env
-        set +a
-        restic cat config
-        """,
-        # hide=True,
-        echo=True,
+        "restic cat config",
+        env=local_backup_env,
+        hide=True,
         warn=True,
     )
-
-    print(output.return_code)
 
     local_restore = False
     if output.return_code == 0:
         local_restore = True
     elif output.return_code == 10:
         server.run(
-            """
-            set -a
-            . /home/starter-home/backup/local_backup.env
-            set +a
-            restic init
-            """,
+            "restic init",
+            env=local_backup_env,
             echo=True,
         )
     else:
@@ -373,12 +363,8 @@ def install_services() -> None:
 
     if local_restore and len(restore_volumes) > 0:
         server.run(
-            """
-            set -a
-            . /home/starter-home/backup/local_backup.env
-            set +a
-            restic restore latest --target /home/starter-home/local_restore
-            """,
+            "restic restore latest --target /home/starter-home/local_restore",
+            env=local_backup_env,
             echo=True,
         )
 
@@ -391,13 +377,11 @@ def install_services() -> None:
         server.run("rm -rf /home/starter-home/local_restore", echo=True)
 
     if REMOTE_BACKUP_ENV.exists():
+        remote_backup_env = get_remote_backup_env()
+
         output = server.run(
-            """
-            set -a
-            . /home/starter-home/backup/remote_backup.env
-            set +a
-            restic cat config
-            """,
+            "restic cat config",
+            env=remote_backup_env,
             hide=True,
             warn=True,
         )
@@ -407,12 +391,8 @@ def install_services() -> None:
             remote_restore = True
         elif output.return_code == 10:
             server.run(
-                """
-                set -a
-                . /home/starter-home/backup/remote_backup.env
-                set +a
-                restic init
-                """,
+                "restic init",
+                env=remote_backup_env,
                 echo=True,
             )
         else:
@@ -421,12 +401,8 @@ def install_services() -> None:
 
         if remote_restore and not local_restore and len(restore_volumes) > 0:
             server.run(
-                """
-                set -a
-                . /home/starter-home/backup/remote_backup.env
-                set +a
-                restic restore latest --target /home/starter-home/remote_restore
-                """,
+                "restic restore latest --target /home/starter-home/remote_restore",
+                env=remote_backup_env,
                 echo=True,
             )
 

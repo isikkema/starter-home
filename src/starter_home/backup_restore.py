@@ -4,7 +4,7 @@ from fabric.connection import Connection
 
 
 def restore_backup(
-    server: Connection, restore_dir: Path, env_file: Path, snapshot_id: str
+    server: Connection, restore_dir: Path, env: dict[str, str | None], snapshot_id: str
 ) -> None:
     volumes = get_volumes(server)
     if len(volumes) == 0:
@@ -13,7 +13,7 @@ def restore_backup(
 
     server.run(f"mkdir -p {restore_dir!s}")
 
-    restore_volumes(server, restore_dir, env_file, snapshot_id)
+    restore_volumes(server, restore_dir, env, snapshot_id)
 
     containers = get_running_containers_with_volumes(server)
     stop_containers(server, containers)
@@ -80,13 +80,6 @@ def import_volumes(server: Connection, restore_dir: Path, volumes: list[str]) ->
 
 
 def restore_volumes(
-    server: Connection, restore_dir: Path, env_file: Path, snapshot_id: str
+    server: Connection, restore_dir: Path, env: dict[str, str | None], snapshot_id: str
 ) -> None:
-    server.run(
-        f"""
-        set -a
-        . {env_file!s}
-        set +a
-        restic restore {snapshot_id} --target {restore_dir!s}
-        """,
-    )
+    server.run(f"restic restore {snapshot_id} --target {restore_dir!s}", env=env)

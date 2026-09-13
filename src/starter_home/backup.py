@@ -3,9 +3,11 @@ import sys
 from pathlib import Path
 
 import click
+import dotenv
 from invoke.runners import Result
 
 from .backup_restore import restore_backup
+from .files import LOCAL_BACKUP_ENV, REMOTE_BACKUP_ENV
 from .server import server_connect
 
 
@@ -19,12 +21,8 @@ def create() -> None:
     server = server_connect()
 
     server.run(
-        """
-        set -a
-        . /home/starter-home/backup/local_backup.env
-        set +a
-        restic cat config
-        """,
+        "restic cat config",
+        env=get_local_backup_env(),
         hide=True,
     )
 
@@ -33,13 +31,11 @@ def create() -> None:
         env={"XDG_RUNTIME_DIR": "/run/user/1000"},
     )
 
+    remote_backup_env = get_remote_backup_env()
+
     output: Result = server.run(
-        """
-        set -a
-        . /home/starter-home/backup/remote_backup.env
-        set +a
-        restic cat config
-        """,
+        "restic cat config",
+        env=remote_backup_env,
         hide=True,
         warn=True,
     )
@@ -49,12 +45,8 @@ def create() -> None:
             pass
         case 10:
             server.run(
-                """
-                set -a
-                . /home/starter-home/backup/remote_backup.env
-                set +a
-                restic init
-                """,
+                "restic init",
+                env=remote_backup_env,
                 hide=True,
             )
         case n:
@@ -101,12 +93,8 @@ def verify() -> None:
 def verify_local() -> None:
     server = server_connect()
     output: Result = server.run(
-        """
-        set -a
-        . /home/starter-home/backup/local_backup.env
-        set +a
-        restic check --read-data
-        """,
+        "restic check --read-data",
+        env=get_local_backup_env(),
         warn=True,
     )
 
@@ -118,12 +106,8 @@ def verify_local() -> None:
 def verify_remote() -> None:
     server = server_connect()
     output: Result = server.run(
-        """
-        set -a
-        . /home/starter-home/backup/remote_backup.env
-        set +a
-        restic check --read-data
-        """,
+        "restic check --read-data",
+        env=get_remote_backup_env(),
         warn=True,
     )
 
@@ -142,8 +126,7 @@ def restore_local(snapshot_id: str):
     server = server_connect()
 
     restore_dir = Path("/home/starter-home/local_restore")
-    env_file = Path("/home/starter-home/backup/local_backup.env")
-    restore_backup(server, restore_dir, env_file, snapshot_id)
+    restore_backup(server, restore_dir, get_local_backup_env(), snapshot_id)
 
 
 @restore.command("remote")
@@ -152,19 +135,14 @@ def restore_remote(snapshot_id: str):
     server = server_connect()
 
     restore_dir = Path("/home/starter-home/remote_restore")
-    env_file = Path("/home/starter-home/backup/remote_backup.env")
-    restore_backup(server, restore_dir, env_file, snapshot_id)
+    restore_backup(server, restore_dir, get_remote_backup_env(), snapshot_id)
 
 
 def list_local_backups() -> list[dict[str, str]]:
     server = server_connect()
     output: Result = server.run(
-        """
-        set -a
-        . /home/starter-home/backup/local_backup.env
-        set +a
-        restic snapshots --json
-        """,
+        "restic snapshots --json",
+        env=get_local_backup_env(),
         hide=True,
     )
 
@@ -192,12 +170,8 @@ def list_local_backups() -> list[dict[str, str]]:
 def list_remote_backups() -> list[dict[str, str]]:
     server = server_connect()
     output: Result = server.run(
-        """
-        set -a
-        . /home/starter-home/backup/remote_backup.env
-        set +a
-        restic snapshots --json
-        """,
+        "restic snapshots --json",
+        env=get_remote_backup_env(),
         hide=True,
     )
 
@@ -220,3 +194,11 @@ def list_remote_backups() -> list[dict[str, str]]:
         )
 
     return backups
+
+
+def get_local_backup_env() -> dict[str, str | None]:
+    return dotenv.dotenv_values(LOCAL_BACKUP_ENV, interpolate=False)
+
+
+def get_remote_backup_env() -> dict[str, str | None]:
+    return dotenv.dotenv_values(REMOTE_BACKUP_ENV, interpolate=False)
