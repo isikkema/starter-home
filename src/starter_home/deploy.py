@@ -353,7 +353,14 @@ def install_services() -> None:
 
     local_restore = False
     if output.return_code == 0:
-        local_restore = True
+        output = server.run(
+            "restic snapshots --json --latest 1",
+            env=local_backup_env,
+            hide=True,
+        )
+
+        if len(json.loads(output.stdout)) > 0:
+            local_restore = True
     elif output.return_code == 10:
         server.run(
             "restic init",
@@ -391,7 +398,14 @@ def install_services() -> None:
 
         remote_restore = False
         if output.return_code == 0:
-            remote_restore = True
+            output = server.run(
+                "restic snapshots --json --latest 1",
+                env=remote_backup_env,
+                hide=True,
+            )
+
+            if len(json.loads(output.stdout)) > 0:
+                remote_restore = True
         elif output.return_code == 10:
             server.run(
                 "restic init",
