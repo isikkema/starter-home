@@ -21,6 +21,7 @@ def server_connect() -> Connection:
     server = Connection(
         "10.50.0.100",
         config=config,
+        connect_timeout=5,
     )
 
     if server.client is not None:

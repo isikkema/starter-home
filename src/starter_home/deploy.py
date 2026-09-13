@@ -270,7 +270,8 @@ class Service:
 
 def wait_for_server() -> Connection:
     waiting = False
-    while True:
+    start = time.time()
+    while time.time() - start <= 180:
         try:
             server = server_connect()
             server.open()
@@ -281,6 +282,8 @@ def wait_for_server() -> Connection:
                 waiting = True
 
             time.sleep(5)
+
+    raise TimeoutError("Timed out while trying to connect to server")
 
 
 def install_services() -> None:
