@@ -276,7 +276,7 @@ def wait_for_server() -> Connection:
             server = server_connect()
             server.open()
             return server
-        except NoValidConnectionsError:
+        except (NoValidConnectionsError, TimeoutError):
             if not waiting:
                 print("Waiting for server...")
                 waiting = True
