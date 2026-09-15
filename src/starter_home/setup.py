@@ -1,11 +1,14 @@
+import ipaddress
 import json
 import os
+import socket
+import subprocess
 from getpass import getpass
 
 import click
 import psutil
 
-from .files import CUSTOM_CONFIG, LOCAL_BACKUP_ENV, REMOTE_BACKUP_ENV, ROOT
+from .files import CUSTOM_CONFIG, LOCAL_BACKUP_ENV, REMOTE_BACKUP_ENV, ROOT, SERVICES
 
 HOST_STORAGE = ROOT / "host-storage"
 
@@ -64,11 +67,61 @@ def setup() -> None:
         if len(mem.strip()) == 0:
             mem = f"{recommended_gib}GiB"
 
-    disk_size = input("Disk Size: ")
+    disk_size = input("Disk Size: ").strip()
+    if len(disk_size) == 0:
+        raise ValueError("Disk Size is required")
+
+    forwarded_ports: list[dict[str, int]] = []
+
+    print(
+        "If you intend to reach the server from any devices other than this computer, port forwarding is required."
+    )
+    answer = input(
+        "Do you want to forward any ports from the host to the server? Y/n: "
+    ).strip()
+    local_addr = None
+    if answer.lower() == "y" or len(answer) == 0:
+        recommended_ip = get_local_ip()
+        if recommended_ip is None:
+            local_ip = input("Host computer's LAN IP: ")
+        else:
+            local_ip = input(f"Host computer's LAN IP [{recommended_ip}]: ").strip()
+            if len(local_ip) == 0:
+                local_ip = recommended_ip
+
+        local_addr = ipaddress.IPv4Address(local_ip)
+        print(
+            "Enter desired forwarded ports in the form <SOURCE_PORT>,<DESTINATION_PORT> or leave blank when finished."
+        )
+        print("Example: 80,8080")
+        while True:
+            answer = input("Forward port: ").strip()
+            if len(answer) == 0:
+                break
+
+            ports = answer.split(",")
+            if len(ports) != 2:
+                print("Couldn't parse ports.")
+                continue
+
+            src_port = int(ports[0])
+            dst_port = int(ports[1])
+
+            forwarded_ports.append(
+                {
+                    "src": src_port,
+                    "dst": dst_port,
+                }
+            )
 
     print(f"CPUs: {cpus}")
     print(f"Memory: {mem}")
     print(f"Disk Size: {disk_size}")
+    if local_addr is not None:
+        print(f"LAN IP: {local_addr.compressed}")
+        print("Forwarded Ports:")
+        for ports in forwarded_ports:
+            print(f"  {ports['src']} => {ports['dst']}")
 
     while True:
         answer = input("Does this look right? y/n: ")
@@ -97,6 +150,7 @@ def setup() -> None:
         print("A remote backup location is highly recommended.")
         print("See the Remote Backups section in the README.")
 
+    SERVICES.mkdir(mode=0o700, exist_ok=True)
     HOST_STORAGE.mkdir(mode=0o700, exist_ok=True)
 
     with open(CUSTOM_CONFIG, "w") as f:
@@ -106,7 +160,46 @@ def setup() -> None:
                 "memory": mem,
                 "disk_size": disk_size,
                 "host-storage": str(HOST_STORAGE),
+                "local_address": local_addr.compressed
+                if local_addr is not None
+                else None,
+                "forwarded_ports": forwarded_ports,
             },
             f,
             indent=4,
         )
+
+    if local_addr is not None:
+        answer = input(
+            f"Do you want to resolve *.starter.home.arpa to {local_addr.compressed}? Y/n: "
+        ).strip()
+        if answer.lower() == "y" or len(answer) == 0:
+            subprocess.run(
+                ["sudo", "tee", "/etc/NetworkManager/dnsmasq.d/starter-home.conf"],
+                input=f"address=/.starter.home.arpa/{local_addr.compressed}",
+                stdout=subprocess.DEVNULL,
+                text=True,
+                check=True,
+            )
+
+            subprocess.run(
+                ["sudo", "systemctl", "restart", "NetworkManager"], check=True
+            )
+
+
+def get_local_ip() -> str | None:
+    s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    s.connect(("1.1.1.1", 53))
+
+    local_ip, _ = s.getsockname()
+    s.close()
+
+    addr = ipaddress.IPv4Address(local_ip)
+    if addr in ipaddress.IPv4Network("10.0.0.0/8"):
+        return local_ip
+    if addr in ipaddress.IPv4Network("172.16.0.0/12"):
+        return local_ip
+    if addr in ipaddress.IPv4Network("192.168.0.0/16"):
+        return local_ip
+
+    return None

@@ -82,6 +82,15 @@ def generate_incus_config() -> dict[str, Any]:
         "host-storage"
     ]
 
+    local_addr = custom_config["local_address"]
+    for idx, ports in enumerate(custom_config["forwarded_ports"]):
+        generated_config["devices"][f"forward-{idx}"] = {
+            "type": "proxy",
+            "listen": f"tcp:{local_addr}:{ports['src']}",
+            "connect": f"tcp:10.50.0.100:{ports['dst']}",
+            "nat": "true",
+        }
+
     with open(GENERATED_CONFIG, "w") as f:
         json.dump(generated_config, f, indent=4)
 
