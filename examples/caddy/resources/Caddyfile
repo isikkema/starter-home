@@ -1,11 +1,11 @@
-http://jellyfin.localhost {
+http://jellyfin.starter.home.arpa {
     reverse_proxy jellyfin:8096
 }
 
-http://seerr.localhost {
+http://seerr.starter.home.arpa {
     reverse_proxy seerr:5055
 }
 
-http://actual.localhost {
+http://actual.starter.home.arpa {
     reverse_proxy actual-budget:5006
 }
