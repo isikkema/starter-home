@@ -1,6 +1,8 @@
 # starter-home
+Your first home server.
 
 ## Installation
+starter-home is meant to be installed on a fresh Debian 13 installation. See [here](https://www.debian.org/download) for instructions on how to install Debian.
 
 1. Clone this repository:
 
