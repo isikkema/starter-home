@@ -20,6 +20,16 @@ wget -qO- https://astral.sh/uv/install.sh | sh
 source $HOME/.local/bin/env
 
 echo "Installing starter-home..."
+
+sudo tee /etc/NetworkManager/conf.d/10-dnsmasq.conf >/dev/null <<EOF
+[main]
+dns=dnsmasq
+EOF
+sudo tee /etc/NetworkManager/dnsmasq.d/starter-home.conf >/dev/null <<EOF
+address=/.starter.home.arpa/10.50.0.100
+EOF
+sudo systemctl restart NetworkManager
+
 uv tool install .
 
 echo "Installed!"
