@@ -1,7 +1,7 @@
 [project]
 name = "starter-home"
-version = "0.1.0"
-description = "Add your description here"
+version = "0.2.0"
+description = "Your first home server."
 readme = "README.md"
 authors = [
     { name = "Isaac Sikkema", email = "isaacsikkema@gmail.com" }
