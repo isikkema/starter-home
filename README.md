@@ -23,28 +23,22 @@ cd starter-home
 4. Log out and log back in OR run:
 
 ```
-source ~/.local/bin/env
-```
-
-and
-
-```
 newgrp incus
 ```
 
 > [!NOTE]
 > Until you log out and log back in, you'll need to run the above command every time your shell restarts.
 
-5. Define your services.  
-   Look at [Defining Services](#defining-services) for information on how to do this.
-
-6. Setup starter-home.
+5. Setup starter-home.
 
 ```
 starter-home setup
 ```
 
-6. Deploy your server!
+6. Define your services.  
+   Look at [Defining Services](#defining-services) for information on how to do this.
+
+7. Deploy your server!
 
 ```
 starter-home deploy
