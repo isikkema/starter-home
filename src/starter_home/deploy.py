@@ -296,6 +296,7 @@ def install_services() -> None:
 
     server = wait_for_server()
 
+    server.run("sudo apt-get update", echo=True)
     server.run("sudo apt-get install -y podman restic", echo=True)
     server.run("sudo loginctl enable-linger starter-home", echo=True)
 
