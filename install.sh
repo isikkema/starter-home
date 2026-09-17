@@ -21,6 +21,8 @@ source $HOME/.local/bin/env
 
 echo "Installing starter-home..."
 
+uv tool install .
+
 sudo tee /etc/NetworkManager/conf.d/10-dnsmasq.conf >/dev/null <<EOF
 [main]
 dns=dnsmasq
@@ -30,6 +32,5 @@ address=/.starter.home.arpa/10.50.0.100
 EOF
 sudo systemctl restart NetworkManager
 
-uv tool install .
 
 echo "Installed!"
