@@ -4,6 +4,7 @@ import shutil
 import subprocess
 import sys
 import time
+from io import StringIO
 from pathlib import Path
 from typing import Any
 
@@ -306,8 +307,18 @@ def install_services() -> None:
     server = wait_for_server()
 
     server.run("sudo apt-get update", echo=True)
-    server.run("sudo apt-get install -y podman restic", echo=True)
+    server.run("sudo apt-get install -y podman restic dnsmasq", echo=True)
     server.run("sudo loginctl enable-linger starter-home", echo=True)
+
+    server.run(
+        "sudo tee /etc/dnsmasq.d/starter-home.conf",
+        in_stream=StringIO(
+            "listen-address=10.50.0.100\nbind-interfaces\n\naddress=/.starter.home.arpa/10.50.0.100"
+        ),
+        echo=True,
+        hide=True,
+    )
+    server.run("sudo systemctl restart dnsmasq", echo=True)
 
     server.run("sudo mkdir -p /vm-storage", echo=True)
     server.run("sudo chown starter-home:starter-home /vm-storage", echo=True)
