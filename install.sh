@@ -4,7 +4,7 @@ set -eo pipefail
 
 echo "Installing Incus..."
 sudo apt-get update
-sudo apt-get install -y incus
+sudo apt-get install -y incus util-linux-extra
 
 sudo incus admin init --minimal
 sudo incus network create starter-net ipv4.address=10.50.0.1/24 ipv4.nat=true ipv6.address=none
