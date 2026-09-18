@@ -1,6 +1,7 @@
 import ipaddress
 import json
 import os
+import shutil
 import socket
 import subprocess
 from getpass import getpass
@@ -11,6 +12,9 @@ import psutil
 from .files import CUSTOM_CONFIG, LOCAL_BACKUP_ENV, REMOTE_BACKUP_ENV, ROOT, SERVICES
 
 HOST_STORAGE = ROOT / "host-storage"
+
+DNS = "10.50.0.100"
+DOMAIN = "~starter.home.arpa"
 
 
 @click.command()
@@ -171,20 +175,10 @@ def setup() -> None:
 
     if local_addr is not None:
         answer = input(
-            f"Do you want to resolve *.starter.home.arpa to {local_addr.compressed}? Y/n: "
+            "Do you want starter-home to attempt to automatically setup split DNS? Y/n: "
         ).strip()
         if answer.lower() == "y" or len(answer) == 0:
-            subprocess.run(
-                ["sudo", "tee", "/etc/NetworkManager/dnsmasq.d/starter-home.conf"],
-                input=f"address=/.starter.home.arpa/{local_addr.compressed}",
-                stdout=subprocess.DEVNULL,
-                text=True,
-                check=True,
-            )
-
-            subprocess.run(
-                ["sudo", "systemctl", "restart", "NetworkManager"], check=True
-            )
+            setup_split_dns()
 
 
 def get_local_ip() -> str | None:
@@ -203,3 +197,83 @@ def get_local_ip() -> str | None:
         return local_ip
 
     return None
+
+
+def setup_split_dns() -> None:
+    if shutil.which("nmcli") and is_active("NetworkManager"):
+        configure_networkmanager()
+    elif shutil.which("networkctl") and is_active("systemd-networkd"):
+        configure_networkd()
+    else:
+        print("Could not determine network stack")
+
+
+def is_active(service: str):
+    return (
+        subprocess.run(
+            ["systemctl", "is-active", "--quiet", service], check=False
+        ).returncode
+        == 0
+    )
+
+
+def configure_networkmanager() -> None:
+    subprocess.run(["sudo", "apt-get", "install", "-y", "systemd-resolved"], check=True)
+
+    subprocess.run(
+        ["sudo", "tee", "/etc/NetworkManager/conf.d/starter-home-dns.conf"],
+        input="""\
+[main]
+dns=systemd-resolved
+""",
+        text=True,
+        check=True,
+    )
+
+    subprocess.run(["sudo", "systemctl", "restart", "NetworkManager"], check=True)
+
+    subprocess.run(
+        [
+            "sudo",
+            "nmcli",
+            "connection",
+            "modify",
+            "starter-net",
+            "+ipv4.dns",
+            DNS,
+            "+ipv4.dns-search",
+            DOMAIN,
+        ],
+        check=True,
+    )
+    subprocess.run(["sudo", "nmcli", "device", "reapply", "starter-net"], check=True)
+    subprocess.run(["sudo", "systemctl", "restart", "systemd-resolved"], check=True)
+
+
+def configure_networkd() -> None:
+    subprocess.run(
+        ["sudo", "tee", "/etc/systemd/system/starter-home-dns.service"],
+        input="""\
+[Unit]
+Description=DNS configuration for starter-home
+BindsTo=sys-subsystem-net-devices-starter\\x2dnet.device
+After=sys-subsystem-net-devices-starter\\x2dnet.device
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/resolvectl dns starter-net 10.50.0.100
+ExecStart=/usr/bin/resolvectl domain starter-net ~starter.home.arpa
+ExecStopPost=/usr/bin/resolvectl revert starter-net
+RemainAfterExit=yes
+
+[Install]
+WantedBy=sys-subsystem-net-devices-starter\\x2dnet.device
+""",
+        text=True,
+        check=True,
+    )
+
+    subprocess.run(["sudo", "systemctl", "daemon-reload"], check=True)
+    subprocess.run(
+        ["sudo", "systemctl", "enable", "--now", "starter-home-dns.service"], check=True
+    )
