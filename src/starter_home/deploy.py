@@ -40,7 +40,8 @@ IP_ADDRESS = "10.50.0.100"
 @click.command()
 def deploy() -> None:
     check_incus()
-    incus_config = get_incus_config()
+    custom_config = get_custom_config()
+    incus_config = get_incus_config(custom_config)
 
     ensure_host_key()
     ensure_ssh_key()
@@ -48,7 +49,11 @@ def deploy() -> None:
 
     ensure_vm_running(incus_config)
 
-    install_services()
+    resolve_addr = "10.50.0.100"
+    if custom_config["resolve_local"]:
+        resolve_addr = custom_config["local_address"]
+
+    install_services(resolve_addr)
 
 
 def check_incus() -> None:
@@ -57,15 +62,7 @@ def check_incus() -> None:
         sys.exit(1)
 
 
-def get_incus_config() -> dict[str, Any]:
-    if GENERATED_CONFIG.exists():
-        with open(GENERATED_CONFIG, "r") as f:
-            return json.load(f)
-
-    return generate_incus_config()
-
-
-def generate_incus_config() -> dict[str, Any]:
+def get_custom_config() -> dict[str, Any]:
     if not CUSTOM_CONFIG.exists():
         print("error: starter-home is not set up!", file=sys.stderr)
         sys.exit(1)
@@ -73,6 +70,18 @@ def generate_incus_config() -> dict[str, Any]:
     with open(CUSTOM_CONFIG, "r") as f:
         custom_config = json.load(f)
 
+    return custom_config
+
+
+def get_incus_config(custom_config: dict[str, Any]) -> dict[str, Any]:
+    if GENERATED_CONFIG.exists():
+        with open(GENERATED_CONFIG, "r") as f:
+            return json.load(f)
+
+    return generate_incus_config(custom_config)
+
+
+def generate_incus_config(custom_config: dict[str, Any]) -> dict[str, Any]:
     with open(BASE_CONFIG, "r") as f:
         generated_config = json.load(f)
 
@@ -296,7 +305,7 @@ def wait_for_server() -> Connection:
     raise TimeoutError("Timed out while trying to connect to server")
 
 
-def install_services() -> None:
+def install_services(resolve_addr: str) -> None:
     SERVICES.mkdir(mode=0o755, exist_ok=True)
 
     services = [Service(dir) for dir in SERVICES.iterdir() if dir.is_dir()]
@@ -313,7 +322,7 @@ def install_services() -> None:
     server.run(
         "sudo tee /etc/dnsmasq.d/starter-home.conf",
         in_stream=StringIO(
-            "listen-address=10.50.0.100\nbind-interfaces\n\naddress=/.starter.home.arpa/10.50.0.100"
+            f"listen-address=10.50.0.100\nbind-interfaces\n\naddress=/.starter.home.arpa/{resolve_addr}"
         ),
         echo=True,
         hide=True,

@@ -118,23 +118,6 @@ def setup() -> None:
                 }
             )
 
-    print(f"CPUs: {cpus}")
-    print(f"Memory: {mem}")
-    print(f"Disk Size: {disk_size}")
-    if local_addr is not None:
-        print(f"LAN IP: {local_addr.compressed}")
-        print("Forwarded Ports:")
-        for ports in forwarded_ports:
-            print(f"  {ports['src']} => {ports['dst']}")
-
-    while True:
-        answer = input("Does this look right? y/n: ")
-        if answer.lower() == "y":
-            break
-        elif answer.lower() == "n":
-            print("Aborting...")
-            return
-
     if not LOCAL_BACKUP_ENV.exists():
         while True:
             local_password = getpass("Password for local backups: ")
@@ -154,6 +137,32 @@ def setup() -> None:
         print("A remote backup location is highly recommended.")
         print("See the Remote Backups section in the README.")
 
+    resolve_local = False
+    answer = input(
+        "Do you want starter-home to attempt to automatically setup split DNS? Y/n: "
+    ).strip()
+    if answer.lower() == "y" or len(answer) == 0:
+        resolve_local = setup_split_dns(local_addr)
+
+    print(f"CPUs: {cpus}")
+    print(f"Memory: {mem}")
+    print(f"Disk Size: {disk_size}")
+    if local_addr is not None:
+        print(f"LAN IP: {local_addr.compressed}")
+        print("Forwarded Ports:")
+        for ports in forwarded_ports:
+            print(f"  {ports['src']} => {ports['dst']}")
+
+        print(f"Resolve Local: {resolve_local}")
+
+    while True:
+        answer = input("Does this look right? y/n: ")
+        if answer.lower() == "y":
+            break
+        elif answer.lower() == "n":
+            print("Aborting...")
+            return
+
     SERVICES.mkdir(mode=0o700, exist_ok=True)
     HOST_STORAGE.mkdir(mode=0o700, exist_ok=True)
 
@@ -168,17 +177,11 @@ def setup() -> None:
                 if local_addr is not None
                 else None,
                 "forwarded_ports": forwarded_ports,
+                "resolve_local": resolve_local,
             },
             f,
             indent=4,
         )
-
-    if local_addr is not None:
-        answer = input(
-            "Do you want starter-home to attempt to automatically setup split DNS? Y/n: "
-        ).strip()
-        if answer.lower() == "y" or len(answer) == 0:
-            setup_split_dns()
 
 
 def get_local_ip() -> str | None:
@@ -199,13 +202,23 @@ def get_local_ip() -> str | None:
     return None
 
 
-def setup_split_dns() -> None:
+def setup_split_dns(addr: ipaddress.IPv4Address | None) -> bool:
     if shutil.which("nmcli") and is_active("NetworkManager"):
         configure_networkmanager()
     elif shutil.which("networkctl") and is_active("systemd-networkd"):
         configure_networkd()
     else:
         print("Could not determine network stack")
+        return False
+
+    if addr is not None:
+        answer = input(
+            f"Do you want to resolve *.starter.home.arpa to {addr.compressed} instead of 10.50.0.100? Y/n: "
+        ).strip()
+        if answer.lower() == "y" or len(answer) == 0:
+            return True
+
+    return False
 
 
 def is_active(service: str):
