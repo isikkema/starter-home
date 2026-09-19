@@ -23,14 +23,4 @@ echo "Installing starter-home..."
 
 uv tool install .
 
-sudo tee /etc/NetworkManager/conf.d/10-dnsmasq.conf >/dev/null <<EOF
-[main]
-dns=dnsmasq
-EOF
-sudo tee /etc/NetworkManager/dnsmasq.d/starter-home.conf >/dev/null <<EOF
-address=/.starter.home.arpa/10.50.0.100
-EOF
-sudo systemctl restart NetworkManager
-
-
 echo "Installed!"
