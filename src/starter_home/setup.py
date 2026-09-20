@@ -197,7 +197,7 @@ def setup() -> None:
 
 
 def validate_size(size: str) -> bool:
-    digits = ["0123456789"]
+    digits = "0123456789"
 
     num = None
     units = None
@@ -207,6 +207,7 @@ def validate_size(size: str) -> bool:
 
         num = size[:i]
         units = size[i:]
+        break
 
     if num is None or units is None:
         return False
