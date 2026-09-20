@@ -48,7 +48,9 @@ def setup() -> None:
         else:
             cpus = int(cpus)
 
-    print("Memory and Disk Size units must be specified GiB or MiB")
+    print(
+        "Memory and Disk Size must be specified as units of MB, GB, TB, MiB, GiB, or TiB."
+    )
     print("Example: 8GiB")
 
     available_mem: int = psutil.virtual_memory().available
@@ -64,16 +66,26 @@ def setup() -> None:
         case n:
             recommended_gib = available_gib - 3
 
-    if recommended_gib is None:
-        mem = input("Memory: ")
-    else:
-        mem = input(f"Memory [{recommended_gib}GiB]: ")
-        if len(mem.strip()) == 0:
-            mem = f"{recommended_gib}GiB"
+    while True:
+        if recommended_gib is None:
+            mem = input("Memory: ")
+        else:
+            mem = input(f"Memory [{recommended_gib}GiB]: ")
+            if len(mem.strip()) == 0:
+                mem = f"{recommended_gib}GiB"
 
-    disk_size = input("Disk Size: ").strip()
-    if len(disk_size) == 0:
-        raise ValueError("Disk Size is required")
+        if validate_size(mem):
+            break
+
+        print(f'"{mem}" is not a valid size.')
+
+    while True:
+        disk_size = input("Disk Size: ").strip()
+
+        if validate_size(disk_size):
+            break
+
+        print(f'"{disk_size}" is not a valid size.')
 
     forwarded_ports: list[dict[str, int]] = []
 
@@ -182,6 +194,29 @@ def setup() -> None:
             f,
             indent=4,
         )
+
+
+def validate_size(size: str) -> bool:
+    digits = ["0123456789"]
+
+    num = None
+    units = None
+    for i in range(len(size)):
+        if size[i] in digits:
+            continue
+
+        num = size[:i]
+        units = size[i:]
+
+    if num is None or units is None:
+        return False
+
+    try:
+        int(num)
+    except ValueError:
+        return False
+
+    return units in ["MB", "GB", "TB", "MiB", "GiB", "TiB"]
 
 
 def get_local_ip() -> str | None:
