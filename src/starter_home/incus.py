@@ -104,7 +104,10 @@ def create_instance(client: Client, incus_config: dict[str, Any]) -> None:
         raise
 
     operation = resp.json()["operation"]
+    wait_for_operation(client, operation)
 
+
+def wait_for_operation(client: Client, operation: str) -> None:
     resp = client.get(f"{BASE_URL}{operation}/wait")
 
     try:
@@ -113,6 +116,15 @@ def create_instance(client: Client, incus_config: dict[str, Any]) -> None:
         print("Error:")
         print(resp.text)
         raise
+
+    metadata = resp.json()["metadata"]
+    status_code = metadata["status_code"]
+    if not (status_code >= 200 and status_code <= 299):
+        print("Error:")
+        print(metadata["err"])
+        raise RuntimeError(
+            f"Operation {operation} failed with status code {status_code}."
+        )
 
 
 def start_instance(client: Client) -> None:
@@ -129,15 +141,7 @@ def start_instance(client: Client) -> None:
         raise
 
     operation = resp.json()["operation"]
-
-    resp = client.get(f"{BASE_URL}{operation}/wait")
-
-    try:
-        _ = resp.raise_for_status()
-    except HTTPStatusError:
-        print("Error:")
-        print(resp.text)
-        raise
+    wait_for_operation(client, operation)
 
 
 def stop_instance(client: Client, error_on_missing: bool) -> None:
@@ -157,15 +161,7 @@ def stop_instance(client: Client, error_on_missing: bool) -> None:
         raise
 
     operation = resp.json()["operation"]
-
-    resp = client.get(f"{BASE_URL}{operation}/wait", timeout=180)
-
-    try:
-        _ = resp.raise_for_status()
-    except HTTPStatusError:
-        print("Error:")
-        print(resp.text)
-        raise
+    wait_for_operation(client, operation)
 
 
 def delete_instance(client: Client) -> None:
