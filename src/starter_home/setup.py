@@ -135,10 +135,19 @@ def setup() -> None:
             local_password = getpass("Password for local backups: ")
             local_password_confirm = getpass("Confirm password: ")
 
-            if local_password_confirm == local_password:
-                break
+            if local_password_confirm != local_password:
+                print("Passwords do not match.")
+                continue
 
-            print("Passwords do not match.")
+            if len(local_password) == 0:
+                print("Password cannot be empty.")
+                continue
+
+            if local_password.strip() != local_password:
+                print("First or last characters of password cannot be whitespace.")
+                continue
+
+            break
 
         with open(LOCAL_BACKUP_ENV, "w") as f:
             _ = f.write(
@@ -194,6 +203,8 @@ def setup() -> None:
             f,
             indent=4,
         )
+
+    print("Setup complete!")
 
 
 def validate_size(size: str) -> bool:
