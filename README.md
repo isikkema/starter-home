@@ -93,6 +93,28 @@ When you first run this, it will create the starter-home VM with an IP address o
 
 On subsequent runs, it will apply any changes you've made to your service definitions. Updated services will be restarted, new services will be spun up, and deleted services will be stopped and removed.
 
+8. Use your services!
+
+Congrats! Your server is up and running.
+
+You can reach your server at `10.50.0.100`. You can also reach your service at `10.50.0.100:<whatever_port_you_published>`.
+
+If you let starter-home setup split DNS,
+
+- And you told starter-home **NOT** to resolve `*.starter.home.arpa` to your host's LAN IP
+
+  You can reach your service at `starter.home.arpa:<whatever_port_you_published>`.
+
+- And you told starter-home to resolve `*.starter.home.arpa` to your host's LAN IP
+  - And you forwarded a port from `<source_port>` to `<whatever_port_you_published>`
+
+    You can reach your service at `starter.home.arpa:<source_port>`
+
+    - And `<source_port>` is `80`
+      - And your service is meant to be accessed through the web
+
+        You can reach your service at `http://starter.home.arpa`
+
 ---
 
 > [!NOTE]
@@ -153,6 +175,7 @@ Description=Jellyfin media server # This can be anything. Write whatever you wan
 [Container]
 ContainerName=jellyfin
 Image=docker.io/jellyfin/jellyfin:latest  # This is where the program actually comes from. It's very likely someone has already bundled the service you want to run in a container image like this.
+PublishPort=8096:8096                 # This allows ports from inside the container to be accessible outside the container. In this case, port 8096 inside the container is accessible as port 8096 outside the container.
 Network=web.network                   # This is the network that the service will run on. This is important if there are any other services you run that this service will need to be able to talk to.
 Volume=jellyfin-config.volume:/config # These are volumes. In this case, the jellyfin-config volume is being mounted to the `/config` directory inside the service container. Any files that the service writes to the `/config` directory will be written to the jellyfin-config volume. Volumes are saved across service restarts and are included in all backups.
 Volume=jellyfin-cache.volume:/cache
@@ -192,6 +215,8 @@ VolumeName=jellyfin-cache
 - That's it!
 
 Run `starter-home deploy` to start your new service!
+
+And access it at `http://10.50.0.100:8096`.
 
 ### More Examples
 
