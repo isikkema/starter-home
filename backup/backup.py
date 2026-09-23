@@ -13,10 +13,11 @@ def main(export_dir: Path) -> None:
     containers = get_running_containers_with_volumes()
     stop_containers(containers)
 
-    export_volumes(export_dir, volumes)
-    backup_exports(export_dir)
-
-    start_containers(containers)
+    try:
+        export_volumes(export_dir, volumes)
+        backup_exports(export_dir)
+    finally:
+        start_containers(containers)
 
 
 def get_running_containers_with_volumes() -> list[str]:
