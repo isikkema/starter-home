@@ -74,6 +74,17 @@ def import_volumes(server: Connection, restore_dir: Path, volumes: list[str]) ->
         import_path = restore_dir / f"{volume}.tar"
 
         server.run(
+            f"podman volume rm {volume}",
+            hide=True,
+        )
+
+        server.run(
+            f"systemctl --user restart {volume}-volume.service",
+            env={"XDG_RUNTIME_DIR": "/run/user/1000"},
+            hide=True,
+        )
+
+        server.run(
             f"podman volume import {volume} {import_path!s}",
             hide=True,
         )
