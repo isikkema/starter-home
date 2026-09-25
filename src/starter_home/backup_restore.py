@@ -32,7 +32,7 @@ def get_running_containers_with_volumes(server: Connection) -> list[str]:
     filtered_containers: list[str] = []
     for container in all_containers:
         output = server.run(
-            f"podman container inspect --format '{{ range .Mounts }}{{ .Type }} {{ end }}' {container}",
+            f"podman container inspect --format '{{{{ range .Mounts }}}}{{{{ .Type }}}} {{{{ end }}}}' {container}",
             hide=True,
         )
 
