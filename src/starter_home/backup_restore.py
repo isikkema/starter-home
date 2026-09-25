@@ -46,8 +46,11 @@ def stop_containers(server: Connection, containers: list[str]) -> None:
     if len(containers) == 0:
         return
 
+    service_names = [f"{container}.service" for container in containers]
+
     server.run(
-        f"podman stop {' '.join(containers)}",
+        f"systemctl --user stop {' '.join(service_names)}",
+        env={"XDG_RUNTIME_DIR": "/run/user/1000"},
         hide=True,
     )
 
@@ -56,8 +59,11 @@ def start_containers(server: Connection, containers: list[str]) -> None:
     if len(containers) == 0:
         return
 
+    service_names = [f"{container}.service" for container in containers]
+
     server.run(
-        f"podman start {' '.join(containers)}",
+        f"systemctl --user start {' '.join(service_names)}",
+        env={"XDG_RUNTIME_DIR": "/run/user/1000"},
         hide=True,
     )
 
