@@ -149,6 +149,7 @@ def setup() -> None:
 
             break
 
+        LOCAL_BACKUP_ENV.touch(mode=0o600, exist_ok=True)
         with open(LOCAL_BACKUP_ENV, "w") as f:
             _ = f.write(
                 f"RESTIC_REPOSITORY=/host-storage/backup\nRESTIC_PASSWORD={local_password}"
