@@ -15,6 +15,14 @@ sudo incus project set "user-$UID" restricted.networks.access=starter-net
 sudo incus project set "user-$UID" restricted.devices.proxy=allow
 sudo incus profile device add default eth0 --project "user-$UID" nic network=starter-net name=eth0
 
+if sudo ufw status 2>/dev/null | grep -q '^Status: active$'; then
+    echo "Allowing starter-home through UFW..."
+    
+    sudo ufw allow in on starter-net
+    sudo ufw route allow in on starter-net
+    sudo ufw route allow out on starter-net
+fi
+
 echo "Installing uv..."
 wget -qO- https://astral.sh/uv/install.sh | sh
 source $HOME/.local/bin/env
