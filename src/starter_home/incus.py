@@ -61,7 +61,7 @@ def create_instance(client: Client, incus_config: dict[str, Any]) -> None:
     request_base = {
         "name": INSTANCE,
         "type": "virtual-machine",
-        "start": True,
+        "start": False,
         "source": {
             "type": "image",
             "alias": IMAGE,
@@ -174,7 +174,9 @@ def stop_instance(client: Client, error_on_missing: bool) -> None:
 
 
 def delete_instance(client: Client) -> None:
-    stop_instance(client, error_on_missing=False)
+    instance = get_instance(client)
+    if instance is not None and instance.state.lower() != "stopped":
+        stop_instance(client, error_on_missing=False)
 
     resp = client.delete(f"{INSTANCE_URL}/{INSTANCE}")
     if resp.status_code == 404:
