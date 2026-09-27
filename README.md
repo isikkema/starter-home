@@ -103,17 +103,17 @@ If you let starter-home setup split DNS,
 
 - And you told starter-home **NOT** to resolve `*.starter.home.arpa` to your host's LAN IP
 
-  You can reach your service at `starter.home.arpa:<whatever_port_you_published>`.
+    You can reach your service at `starter.home.arpa:<whatever_port_you_published>`.
 
 - And you told starter-home to resolve `*.starter.home.arpa` to your host's LAN IP
-  - And you forwarded a port from `<source_port>` to `<whatever_port_you_published>`
+    - And you forwarded a port from `<source_port>` to `<whatever_port_you_published>`
 
-    You can reach your service at `starter.home.arpa:<source_port>`
+        You can reach your service at `starter.home.arpa:<source_port>`
 
-    - And `<source_port>` is `80`
-      - And your service is meant to be accessed through the web
+        - And `<source_port>` is `80`
+            - And your service is meant to be accessed through the web
 
-        You can reach your service at `http://starter.home.arpa`
+                You can reach your service at `http://starter.home.arpa`
 
 ---
 
@@ -170,25 +170,41 @@ mkdir services/jellyfin/
 
 ```
 [Unit]
-Description=Jellyfin media server # This can be anything. Write whatever you want here to describe your service.
+# This can be anything. Write whatever you want here to describe your service.
+Description=Jellyfin media server
 
 [Container]
 ContainerName=jellyfin
 
-# This is where the program actually comes from. It's very likely someone has already bundled the service you want to run in a container image like this.
+# This is where the program actually comes from.
+# It's very likely someone has already bundled the service you want to run in a container image like this.
 Image=docker.io/jellyfin/jellyfin:latest
 
-# This allows ports from inside the container to be accessible outside the container. In this case, port 8096 inside the container is accessible as port 8096 outside the container.
+# This allows ports from inside the container to be accessible outside the container.
+# In this case, port 8096 inside the container is accessible as port 8096 outside the container.
 PublishPort=8096:8096
 
-# This is the network that the service will run on. This is important if there are any other services you run that this service will need to be able to talk to.
+# This is the network that the service will run on.
+# This is important if there are any other services you run that this service will need to be able to talk to.
 Network=web.network
 
-# These are volumes. In this case, the jellyfin-config volume is being mounted to the `/config` directory inside the service container. Any files that the service writes to the `/config` directory will be written to the jellyfin-config volume. Volumes are saved across service restarts and are included in all backups.
+# These are volumes. You can think of volumes as self-contained folders.
+# They exist separately from containers, but can be mounted to them.
+# In this case, the jellyfin-config volume is being mounted to the `/config` directory inside the service container.
+# Any files that the service writes to the `/config` directory will be written to the jellyfin-config volume.
+# Volumes are saved across service restarts and are included in all backups.
 Volume=jellyfin-config.volume:/config
 Volume=jellyfin-cache.volume:/cache
 
-# In this case, `/host-storage/media` on the VM is mounted to `/media` on the container. And since `host-storage/` on the host is mounted to `/host-storage/` on the VM, that means `host-storage/media/` is actually stored on the host. The ro at the end means that the container can only read, and not write to `/media`. Since this isn't a volume, it isn't backed up. This is useful when you want to persist data across restarts and even different VMs, but don't want it to be included in backups.
+# This is not actually a volume, it's a bind mount.
+# A bind mount is when you mount an existing directory outside the container to the container.
+# In this case, `/host-storage/media` on the VM is mounted to `/media` on the container.
+# And since `host-storage/` on the host is mounted to `/host-storage/` on the VM,
+# that means `host-storage/media/` is actually stored on the host.
+# The ro at the end means that the container can only read, and not write to `/media`.
+# Since this isn't a volume, it isn't backed up.
+# This is useful when you want to persist data across restarts and even different VMs,
+# but don't want it to be included in backups.
 Volume=/host-storage/media:/media:ro
 
 [Service]
