@@ -14,3 +14,5 @@ sudo incus profile device remove default eth0 --project "user-$UID"
 sudo incus network delete starter-net
 
 sudo apt-get remove --purge --autoremove -y incus
+
+echo "\n---\nReboot to complete the uninstall process."
