@@ -117,6 +117,15 @@ def wait_for_operation(client: Client, operation: str) -> None:
         print(resp.text)
         raise
 
+    resp_json = resp.json()
+    type = resp_json["type"]
+    if type == "error":
+        print("Error:")
+        print(resp_json["error"])
+        raise RuntimeError(
+            f"Operation {operation} failed with error code {resp_json['error_code']}"
+        )
+
     metadata = resp.json()["metadata"]
     status_code = metadata["status_code"]
     if not (status_code >= 200 and status_code <= 299):
