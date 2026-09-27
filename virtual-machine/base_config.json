@@ -18,6 +18,7 @@
         "host-storage": {
             "type": "disk",
             "path": "/host-storage",
+            "propagation": "rslave",
             "required": "true"
         }
     }
