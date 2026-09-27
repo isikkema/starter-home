@@ -189,10 +189,10 @@ def create_known_hosts() -> None:
 
 def ensure_vm_running(incus_config: dict[str, Any]) -> None:
     client = new_incus_client()
-    vm_exists = check_vm_exists(client)
-    if not vm_exists:
+    instance = get_instance(client)
+    if instance is None:
         create_instance(client, incus_config)
-    else:
+    elif instance.state.lower() == "stopped":
         start_instance(client)
 
 
