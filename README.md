@@ -174,19 +174,33 @@ Description=Jellyfin media server # This can be anything. Write whatever you wan
 
 [Container]
 ContainerName=jellyfin
-Image=docker.io/jellyfin/jellyfin:latest  # This is where the program actually comes from. It's very likely someone has already bundled the service you want to run in a container image like this.
-PublishPort=8096:8096                 # This allows ports from inside the container to be accessible outside the container. In this case, port 8096 inside the container is accessible as port 8096 outside the container.
-Network=web.network                   # This is the network that the service will run on. This is important if there are any other services you run that this service will need to be able to talk to.
-Volume=jellyfin-config.volume:/config # These are volumes. In this case, the jellyfin-config volume is being mounted to the `/config` directory inside the service container. Any files that the service writes to the `/config` directory will be written to the jellyfin-config volume. Volumes are saved across service restarts and are included in all backups.
+
+# This is where the program actually comes from. It's very likely someone has already bundled the service you want to run in a container image like this.
+Image=docker.io/jellyfin/jellyfin:latest
+
+# This allows ports from inside the container to be accessible outside the container. In this case, port 8096 inside the container is accessible as port 8096 outside the container.
+PublishPort=8096:8096
+
+# This is the network that the service will run on. This is important if there are any other services you run that this service will need to be able to talk to.
+Network=web.network
+
+# These are volumes. In this case, the jellyfin-config volume is being mounted to the `/config` directory inside the service container. Any files that the service writes to the `/config` directory will be written to the jellyfin-config volume. Volumes are saved across service restarts and are included in all backups.
+Volume=jellyfin-config.volume:/config
 Volume=jellyfin-cache.volume:/cache
-Volume=/host-storage/media:/media:ro  # In this case, `/host-storage/media` on the VM is mounted to `/media` on the container. And since `host-storage/` on the host is mounted to `/host-storage/` on the VM, that means `host-storage/media/` is actually stored on the host. The ro at the end means that the container can only read, and not write to `/media`. Since this isn't a volume, it isn't backed up. This is useful when you want to persist data across restarts and even different VMs, but don't want it to be included in backups.
+
+# In this case, `/host-storage/media` on the VM is mounted to `/media` on the container. And since `host-storage/` on the host is mounted to `/host-storage/` on the VM, that means `host-storage/media/` is actually stored on the host. The ro at the end means that the container can only read, and not write to `/media`. Since this isn't a volume, it isn't backed up. This is useful when you want to persist data across restarts and even different VMs, but don't want it to be included in backups.
+Volume=/host-storage/media:/media:ro
 
 [Service]
-ExecStartPre=mkdir -p /host-storage/media # This creates `/host-storage/media/` on the VM before the service starts.
-Restart=always                            # This restarts the service if it ever stops.
+# This creates `/host-storage/media/` on the VM before the service starts.
+ExecStartPre=mkdir -p /host-storage/media
+
+# This restarts the service if it ever stops.
+Restart=always
 
 [Install]
-WantedBy=default.target # This makes sure the service starts whenever the VM reboots.
+# This makes sure the service starts whenever the VM reboots.
+WantedBy=default.target
 ```
 
 - Then you'll want to create all the supporting files that `services/jellyfin/jellyfin.container` depends on.
