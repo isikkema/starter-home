@@ -153,10 +153,10 @@ def start_instance(client: Client) -> None:
     wait_for_operation(client, operation)
 
 
-def stop_instance(client: Client, error_on_missing: bool) -> None:
+def stop_instance(client: Client, error_on_missing: bool, force: bool = False) -> None:
     resp = client.put(
         f"{INSTANCE_URL}/{INSTANCE}/state",
-        json={"action": "stop"},
+        json={"action": "stop", "force": force},
     )
 
     if not error_on_missing and resp.status_code == 404:
@@ -176,7 +176,7 @@ def stop_instance(client: Client, error_on_missing: bool) -> None:
 def delete_instance(client: Client) -> None:
     instance = get_instance(client)
     if instance is not None and instance.state.lower() != "stopped":
-        stop_instance(client, error_on_missing=False)
+        stop_instance(client, error_on_missing=False, force=True)
 
     resp = client.delete(f"{INSTANCE_URL}/{INSTANCE}")
     if resp.status_code == 404:
