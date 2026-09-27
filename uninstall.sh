@@ -6,8 +6,8 @@ sudo rm /etc/NetworkManager/conf.d/starter-home-dns.conf
 sudo rm /etc/systemd/system/starter-home-dns.service
 
 sudo ufw delete allow in on starter-net
-sudo ufw delete route allow in on starter-net
-sudo ufw delete route allow out on starter-net
+sudo ufw route delete allow in on starter-net
+sudo ufw route delete allow out on starter-net
 
 incus delete --force starter-home
 sudo incus profile device remove default eth0 --project "user-$UID"
