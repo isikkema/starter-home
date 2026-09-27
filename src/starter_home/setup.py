@@ -110,18 +110,31 @@ def setup() -> None:
             "Enter desired forwarded ports in the form <SOURCE_PORT>,<DESTINATION_PORT> or leave blank when finished."
         )
         print("Example: 80,8080")
+        first_forward = True
         while True:
-            answer = input("Forward port: ").strip()
-            if len(answer) == 0:
-                break
+            if first_forward:
+                answer = input("Forward port: ").strip()
+                ports = answer.split(",")
+                if len(ports) != 2:
+                    print("Couldn't parse ports.")
+                    continue
+            else:
+                print("Leave blank when finished.")
+                answer = input("Additional forward port: ").strip()
+                if len(answer) == 0:
+                    break
 
             ports = answer.split(",")
             if len(ports) != 2:
                 print("Couldn't parse ports.")
                 continue
 
-            src_port = int(ports[0])
-            dst_port = int(ports[1])
+            try:
+                src_port = int(ports[0])
+                dst_port = int(ports[1])
+            except ValueError:
+                print("Couldn't parse ports")
+                continue
 
             forwarded_ports.append(
                 {
@@ -129,6 +142,8 @@ def setup() -> None:
                     "dst": dst_port,
                 }
             )
+
+            first_forward = False
 
     if not LOCAL_BACKUP_ENV.exists():
         while True:
