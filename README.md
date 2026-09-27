@@ -76,10 +76,14 @@ Look at the [The `starter-home setup` Command](#the-starter-home-setup-command) 
 
 Your services are the programs you run on your server. They're the things you actually connect to and use.
 
-Look at the [Defining Services](#defining-services) section of this README for information on how to do this.
+If you're just looking to try out starter-home, feel free to copy some example services from `examples/` to the `services/` directory.
+For example:
+```
+cp -r examples/caddy/ examples/jellyfin/ services/
+```
 
-Or if you're just looking to try out starter-home, feel free to copy some example services from `examples/` to the `services/` directory.
-Ex: `cp -r examples/caddy/ examples/jellyfin/ services/`
+Otherwise, you can (and should) define your own services.  
+Look at the [Defining Services](#defining-services) section of this README for information on how to do this.
 
 7. Deploy your server!
 
