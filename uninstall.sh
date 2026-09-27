@@ -1,0 +1,12 @@
+#!/bin/bash
+
+uv tool uninstall starter-home
+
+sudo rm /etc/NetworkManager/conf.d/starter-home-dns.conf
+sudo rm /etc/systemd/system/starter-home-dns.service
+
+incus delete --force starter-home
+sudo incus profile device remove default eth0 --project "user-$UID"
+sudo incus network delete starter-net
+
+sudo apt-get remove --purge --autoremove -y incus
