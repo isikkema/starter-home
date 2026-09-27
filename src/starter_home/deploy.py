@@ -47,13 +47,14 @@ def deploy() -> None:
     ensure_ssh_key()
     ensure_known_hosts()
 
-    ensure_vm_running(incus_config)
+    client = new_incus_client()
+    ensure_vm_running(client, incus_config)
 
     resolve_addr = "10.50.0.100"
     if custom_config["resolve_local"]:
         resolve_addr = custom_config["local_address"]
 
-    install_services(resolve_addr)
+    install_services(client, resolve_addr)
 
 
 def check_incus() -> None:
@@ -187,13 +188,12 @@ def create_known_hosts() -> None:
     )
 
 
-def ensure_vm_running(incus_config: dict[str, Any]) -> None:
-    client = new_incus_client()
+def ensure_vm_running(client: Client, incus_config: dict[str, Any]) -> None:
     instance = get_instance(client)
     if instance is None:
         create_instance(client, incus_config)
-    elif instance.state.lower() == "stopped":
-        start_instance(client)
+
+    start_instance(client)
 
 
 def check_vm_exists(client: Client) -> bool:
@@ -287,7 +287,7 @@ class Service:
         )
 
 
-def wait_for_server() -> Connection:
+def wait_for_server(client: Client) -> Connection:
     waiting = False
     start = time.time()
     while time.time() - start <= 180:
@@ -300,12 +300,20 @@ def wait_for_server() -> Connection:
                 print("Waiting for server...")
                 waiting = True
 
-            time.sleep(5)
+        instance = get_instance(client)
+        if instance is None:
+            raise RuntimeError("Server VM does not exist")
+
+        if instance.state.lower() == "stopped":
+            print("Server stopped. Restarting...")
+            start_instance(client)
+
+        time.sleep(5)
 
     raise TimeoutError("Timed out while trying to connect to server")
 
 
-def install_services(resolve_addr: str) -> None:
+def install_services(client: Client, resolve_addr: str) -> None:
     SERVICES.mkdir(mode=0o755, exist_ok=True)
 
     services = [Service(dir) for dir in SERVICES.iterdir() if dir.is_dir()]
@@ -313,7 +321,7 @@ def install_services(resolve_addr: str) -> None:
     if len(services) == 0:
         print("WARNING: No services to deploy.")
 
-    server = wait_for_server()
+    server = wait_for_server(client)
 
     server.run("sudo apt-get update", echo=True)
     server.run("sudo apt-get install -y podman restic dnsmasq", echo=True)
