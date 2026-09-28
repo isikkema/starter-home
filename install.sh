@@ -6,6 +6,26 @@ echo "Installing Incus..."
 sudo apt-get update
 sudo apt-get install -y incus util-linux-extra
 
+if command -v docker >/dev/null 2>&1; then
+    if [ ! -f /etc/docker/daemon.json ]; then
+        echo "Configuring Docker for Incus..."
+        sudo mkdir -p /etc/docker
+        sudo tee /etc/docker/daemon.json >/dev/null <<'EOF'
+{
+    "ip-forward-no-drop": true
+}
+EOF
+
+        if sudo systemctl is-active --quiet docker; then
+            sudo systemctl restart docker
+        fi
+    else
+        echo "Warning: /etc/docker/daemon.json already exists."
+        echo "Docker may interfere with Incus networking."
+        echo "Please ensure it is configured with \"ip-forward-no-drop\": true."
+    fi
+fi
+
 sudo incus admin init --minimal
 sudo incus network create starter-net ipv4.address=10.50.0.1/24 ipv4.nat=true ipv6.address=none
 sudo gpasswd --add "$USER" incus
