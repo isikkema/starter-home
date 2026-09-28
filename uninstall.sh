@@ -15,4 +15,12 @@ sudo incus network delete starter-net
 
 sudo apt-get remove --purge --autoremove -y incus
 
-echo "\n---\nReboot to complete the uninstall process."
+if systemctl is-active --quiet NetworkManager; then
+    sudo nmcli device delete starter-net
+elif systemctl is-active --quiet systemd-networkd; then
+    echo "TODO: systemd-networkd"
+else
+    echo "WARNING: Failed to determine network manager."
+fi
+
+echo -e "\n---\nReboot to complete the uninstall process."
