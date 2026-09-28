@@ -2,8 +2,12 @@
 
 set -eo pipefail
 
-echo "Installing Incus..."
+echo "Checking for virtualization..."
 sudo apt-get update
+sudo apt-get install -y cpu-checker
+sudo kvm-ok
+
+echo "Installing Incus..."
 sudo apt-get install -y incus util-linux-extra
 
 if command -v docker >/dev/null 2>&1; then
