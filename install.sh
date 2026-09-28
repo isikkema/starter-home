@@ -19,6 +19,8 @@ EOF
         if sudo systemctl is-active --quiet docker; then
             sudo systemctl restart docker
         fi
+        
+        sudo iptables -P FORWARD ACCEPT
     else
         echo "Warning: /etc/docker/daemon.json already exists."
         echo "Docker may interfere with Incus networking."
