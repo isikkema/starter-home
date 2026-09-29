@@ -191,9 +191,12 @@ def create_known_hosts() -> None:
 def ensure_vm_running(client: Client, incus_config: dict[str, Any]) -> None:
     instance = get_instance(client)
     if instance is None:
+        print("Creating server...")
         create_instance(client, incus_config)
 
-    start_instance(client)
+    if instance is None or instance.state.lower() != "running":
+        print("Starting server...")
+        start_instance(client)
 
 
 def check_vm_exists(client: Client) -> bool:
@@ -288,25 +291,31 @@ class Service:
 
 
 def wait_for_server(client: Client) -> Connection:
-    waiting = False
     start = time.time()
     while time.time() - start <= 180:
-        try:
-            server = server_connect()
-            server.open()
-            return server
-        except (NoValidConnectionsError, TimeoutError):
-            if not waiting:
-                print("Waiting for server...")
-                waiting = True
-
         instance = get_instance(client)
         if instance is None:
-            raise RuntimeError("Server VM does not exist")
+            print("Waiting for server to exist...")
+        elif instance.state.lower() == "stopped":
+            print("Waiting for server to start...")
+        elif instance.state.lower() == "running":
+            if instance.ip_address is None:
+                print("Waiting for server to get IP...")
+            else:
+                try:
+                    server = server_connect()
+                    server.open()
+                    return server
+                except (NoValidConnectionsError, TimeoutError):
+                    print("Waiting for server to start SSH...")
 
-        if instance.state.lower() == "stopped":
-            print("Server stopped. Restarting...")
-            start_instance(client)
+                instance = get_instance(client)
+                if instance is None:
+                    raise RuntimeError("Server VM does not exist")
+
+                if instance.state.lower() == "stopped":
+                    print("Server stopped. Restarting...")
+                    start_instance(client)
 
         time.sleep(5)
 
