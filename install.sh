@@ -51,8 +51,9 @@ fi
 
 echo "Installing uv..."
 wget -qO- https://astral.sh/uv/install.sh | sh
-source $HOME/.local/bin/env
-
+if [ -f "$HOME/.local/bin/env" ]; then
+    source "$HOME/.local/bin/env"
+fi
 echo "Installing starter-home..."
 
 uv tool install .
