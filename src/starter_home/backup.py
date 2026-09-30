@@ -16,47 +16,92 @@ def backup() -> None:
     pass
 
 
-@backup.command()
-def create() -> None:
+@backup.group(invoke_without_command=True)
+@click.pass_context
+def create(ctx) -> None:
+    if ctx.invoked_subcommand is None:
+        interrupt = None
+        try:
+            ctx.invoke(create_local)
+        except SystemExit as e:
+            interrupt = e
+    
+        ctx.invoke(create_remote)
+    
+        if interrupt is not None:
+            raise interrupt
+
+
+@create.command("local")
+def create_local() -> None:
     server = server_connect()
 
-    server.run(
-        "restic cat config",
-        env=get_local_backup_env(),
-        hide=True,
-    )
+    local_backup_env = get_local_backup_env()
+    if local_backup_env is not None:
+        output: Result = server.run(
+            "restic cat config",
+            env=local_backup_env,
+            hide=True,
+            warn=True,
+        )
 
-    server.run(
-        "systemctl --user start local-backup.service",
-        env={"XDG_RUNTIME_DIR": "/run/user/1000"},
-    )
+        match output.return_code:
+            case 0:
+                pass
+            case 10:
+                server.run(
+                    "restic init",
+                    env=local_backup_env,
+                    hide=True,
+                )
+            case n:
+                print(f"Failed to create local backup:\n{output.stderr}")
+                sys.exit(n)
+
+        server.run(
+            "systemctl --user start local-backup.service",
+            env={"XDG_RUNTIME_DIR": "/run/user/1000"},
+        )
+
+        print("Created local backup.")
+    else:
+        sys.exit(1)
+
+
+@create.command("remote")
+def create_remote() -> None:
+    server = server_connect()
 
     remote_backup_env = get_remote_backup_env()
+    if remote_backup_env is not None:
+        output: Result = server.run(
+            "restic cat config",
+            env=remote_backup_env,
+            hide=True,
+            warn=True,
+        )
 
-    output: Result = server.run(
-        "restic cat config",
-        env=remote_backup_env,
-        hide=True,
-        warn=True,
-    )
+        match output.return_code:
+            case 0:
+                pass
+            case 10:
+                server.run(
+                    "restic init",
+                    env=remote_backup_env,
+                    hide=True,
+                )
+            case n:
+                print(f"Failed to create remote backup:\n{output.stderr}")
+                sys.exit(n)
 
-    match output.return_code:
-        case 0:
-            pass
-        case 10:
-            server.run(
-                "restic init",
-                env=remote_backup_env,
-                hide=True,
-            )
-        case n:
-            print(f"Failed to create remote backup:\n{output.stderr}")
-            sys.exit(n)
+        server.run(
+            "systemctl --user start remote-backup.service",
+            env={"XDG_RUNTIME_DIR": "/run/user/1000"},
+        )
 
-    server.run(
-        "systemctl --user start remote-backup.service",
-        env={"XDG_RUNTIME_DIR": "/run/user/1000"},
-    )
+        print("Created remote backup.")
+    else:
+        sys.exit(1)
 
 
 @backup.group("list")
@@ -196,9 +241,20 @@ def list_remote_backups() -> list[dict[str, str]]:
     return backups
 
 
-def get_local_backup_env() -> dict[str, str | None]:
+def get_local_backup_env() -> dict[str, str | None] | None:
+    if not LOCAL_BACKUP_ENV.exists():
+        print("WARNING: Your local backup env is missing!")
+        print(f"Re-run starter-home setup or manually create it at {LOCAL_BACKUP_ENV}")
+        return None
+
     return dotenv.dotenv_values(LOCAL_BACKUP_ENV, interpolate=False)
 
 
-def get_remote_backup_env() -> dict[str, str | None]:
+def get_remote_backup_env() -> dict[str, str | None] | None:
+    if not REMOTE_BACKUP_ENV.exists():
+        print("WARNING: You have no remote backup env defined!")
+        print("A remote backup location is highly recommended.")
+        print("See the Remote Backups section in the README.")
+        return None
+
     return dotenv.dotenv_values(REMOTE_BACKUP_ENV, interpolate=False)
