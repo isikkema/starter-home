@@ -78,6 +78,7 @@ Your services are the programs you run on your server. They're the things you ac
 
 If you're just looking to try out starter-home, feel free to copy some example services from `examples/` to the `services/` directory.
 For example:
+
 ```
 cp -r examples/caddy/ examples/jellyfin/ services/
 ```
@@ -299,3 +300,10 @@ That means that you can:
 5. copy your service definitions and `remote_backup.env` to the new computer.
 6. run `starter-home deploy`.
 7. continue using your services as they were on your formerly non-wood-chipped computer when a remote backup was last created.
+
+## Network Attached Storage
+
+To use a NAS with starter-home, simply mount it to `nas/` in the starter-home directory.
+
+The NAS must be mounted before the server is started.
+If your server is already running, you can mount the NAS and then run `starter-home restart` to restart your server.

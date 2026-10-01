@@ -18,8 +18,13 @@
         "host-storage": {
             "type": "disk",
             "path": "/host-storage",
-            "propagation": "rslave",
             "required": "true"
+        },
+        "nas": {
+            "type": "disk",
+            "path": "/nas",
+            "propagation": "slave",
+            "required": "false"
         }
     }
 }

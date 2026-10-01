@@ -12,6 +12,7 @@ import psutil
 from .files import CUSTOM_CONFIG, LOCAL_BACKUP_ENV, REMOTE_BACKUP_ENV, ROOT, SERVICES
 
 HOST_STORAGE = ROOT / "host-storage"
+NAS = ROOT / "nas"
 
 DNS = "10.50.0.100"
 DOMAIN = "~starter.home.arpa"
@@ -210,6 +211,7 @@ def setup() -> None:
                 "memory": mem,
                 "disk_size": disk_size,
                 "host-storage": str(HOST_STORAGE),
+                "nas": str(NAS),
                 "local_address": local_addr.compressed
                 if local_addr is not None
                 else None,

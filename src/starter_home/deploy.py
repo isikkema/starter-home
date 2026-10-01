@@ -92,6 +92,7 @@ def generate_incus_config(custom_config: dict[str, Any]) -> dict[str, Any]:
     generated_config["devices"]["host-storage"]["source"] = custom_config[
         "host-storage"
     ]
+    generated_config["devices"]["nas"]["source"] = custom_config["nas"]
 
     local_addr = custom_config["local_address"]
     for idx, ports in enumerate(custom_config["forwarded_ports"]):
