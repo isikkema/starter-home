@@ -427,10 +427,12 @@ def install_services(client: Client, resolve_addr: str) -> None:
         )
 
         for volume in restore_volumes:
-            output = server.run(
-                f"podman volume import {volume} /home/starter-home/local_restore/{volume}.tar",
-                echo=True,
-            )
+            output = server.run(f"test -f /home/starter-home/local_restore/{volume}.tar", hide=True, warn=True)
+            if output.return_code == 0:
+                server.run(
+                    f"podman volume import {volume} /home/starter-home/local_restore/{volume}.tar",
+                    echo=True,
+                )
 
         server.run("rm -rf /home/starter-home/local_restore", echo=True)
 
