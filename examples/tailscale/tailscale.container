@@ -1,0 +1,20 @@
+[Unit]
+Description=Tailscale node
+
+[Container]
+ContainerName=tailscale
+Image=docker.io/tailscale/tailscale:latest
+Network=tailscale.network
+Volume=tailscale.volume:/var/lib/tailscale
+Environment=TS_STATE_DIR=/var/lib/tailscale
+Environment=TS_HOSTNAME=starter-home-service
+EnvironmentFile=resources/tailscale.env
+AddCapability=net_admin
+AddCapability=net_raw
+
+[Service]
+Restart=always
+TimeoutStartSec=300
+
+[Install]
+WantedBy=default.target
