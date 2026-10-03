@@ -20,16 +20,24 @@ def backup() -> None:
 @click.pass_context
 def create(ctx) -> None:
     if ctx.invoked_subcommand is None:
-        interrupt = None
-        try:
-            ctx.invoke(create_local)
-        except SystemExit as e:
-            interrupt = e
-    
-        ctx.invoke(create_remote)
-    
-        if interrupt is not None:
-            raise interrupt
+        sys.exit(create_backups())
+
+
+def create_backups() -> int:
+    local_backup_env = get_local_backup_env()
+    local_backup_exit_code = 1
+    if local_backup_env is not None:
+        local_backup_exit_code = create_backup("local", local_backup_env)
+
+    remote_backup_env = get_remote_backup_env()
+    remote_backup_exit_code = 1
+    if remote_backup_env is not None:
+        remote_backup_exit_code = create_backup("remote", remote_backup_env)
+
+    if local_backup_exit_code != 0:
+        return local_backup_exit_code
+
+    return remote_backup_exit_code
 
 
 @create.command("local")
@@ -38,32 +46,9 @@ def create_local() -> None:
 
     local_backup_env = get_local_backup_env()
     if local_backup_env is not None:
-        output: Result = server.run(
-            "restic cat config",
-            env=local_backup_env,
-            hide=True,
-            warn=True,
-        )
-
-        match output.return_code:
-            case 0:
-                pass
-            case 10:
-                server.run(
-                    "restic init",
-                    env=local_backup_env,
-                    hide=True,
-                )
-            case n:
-                print(f"Failed to create local backup:\n{output.stderr}")
-                sys.exit(n)
-
-        server.run(
-            "systemctl --user start local-backup.service",
-            env={"XDG_RUNTIME_DIR": "/run/user/1000"},
-        )
-
-        print("Created local backup.")
+        n = create_backup("local", local_backup_env)
+        if n != 0:
+            sys.exit(n)
     else:
         sys.exit(1)
 
@@ -74,34 +59,44 @@ def create_remote() -> None:
 
     remote_backup_env = get_remote_backup_env()
     if remote_backup_env is not None:
-        output: Result = server.run(
-            "restic cat config",
-            env=remote_backup_env,
-            hide=True,
-            warn=True,
-        )
-
-        match output.return_code:
-            case 0:
-                pass
-            case 10:
-                server.run(
-                    "restic init",
-                    env=remote_backup_env,
-                    hide=True,
-                )
-            case n:
-                print(f"Failed to create remote backup:\n{output.stderr}")
-                sys.exit(n)
-
-        server.run(
-            "systemctl --user start remote-backup.service",
-            env={"XDG_RUNTIME_DIR": "/run/user/1000"},
-        )
-
-        print("Created remote backup.")
+        n = create_backup("remote", remote_backup_env)
+        if n != 0:
+            return n
     else:
         sys.exit(1)
+
+
+def create_backup(type: str, env: dict[str, str]) -> int:
+    server = server_connect()
+
+    output: Result = server.run(
+        "restic cat config",
+        env=env,
+        hide=True,
+        warn=True,
+    )
+
+    match output.return_code:
+        case 0:
+            pass
+        case 10:
+            server.run(
+                "restic init",
+                env=env,
+                hide=True,
+            )
+        case n:
+            print(f"Failed to create {type} backup:\n{output.stderr}")
+            return n
+
+    server.run(
+        f"systemctl --user start {type}-backup.service",
+        env={"XDG_RUNTIME_DIR": "/run/user/1000"},
+    )
+
+    print(f"Created {type} backup.")
+
+    return 0
 
 
 @backup.group("list")
@@ -162,7 +157,7 @@ def verify_remote() -> None:
 
 @backup.group()
 def restore():
-    pass
+    create_backups()
 
 
 @restore.command("local")
