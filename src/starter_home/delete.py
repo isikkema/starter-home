@@ -2,8 +2,9 @@ import shutil
 
 import click
 
+from .backup import create_backups
 from .files import ROOT
-from .incus import delete_instance, new_incus_client
+from .incus import delete_instance, get_instance, new_incus_client
 
 SECRETS = ROOT / "secrets"
 LOCAL_BACKUP = ROOT / "host-storage" / "backup"
@@ -20,16 +21,6 @@ def delete(delete_local_backups: bool) -> None:
         return
 
     client = new_incus_client()
-    delete_instance(client)
-
-    for item in SECRETS.iterdir():
-        if item.name == ".gitkeep":
-            continue
-
-        if item.is_dir():
-            shutil.rmtree(item)
-        else:
-            item.unlink()
 
     if delete_local_backups:
         answer = input(
@@ -40,3 +31,26 @@ def delete(delete_local_backups: bool) -> None:
             return
 
         shutil.rmtree(LOCAL_BACKUP)
+    else:
+        instance = get_instance(client)
+        if instance is not None:
+            if instance.state.lower() == "running":
+                create_backups()
+            else:
+                answer = input(
+                    "WARNING: Could not backup the starter-home VM because it's not running!\nContinue delete? yes/no: "
+                )
+                if answer.lower() != "yes":
+                    print("Aborted.")
+                    return
+
+    delete_instance(client)
+
+    for item in SECRETS.iterdir():
+        if item.name == ".gitkeep":
+            continue
+
+        if item.is_dir():
+            shutil.rmtree(item)
+        else:
+            item.unlink()
