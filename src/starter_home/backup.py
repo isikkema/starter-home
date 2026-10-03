@@ -20,30 +20,29 @@ def backup() -> None:
 @click.pass_context
 def create(ctx) -> None:
     if ctx.invoked_subcommand is None:
-        sys.exit(create_backups())
+        create_backups()
 
 
-def create_backups() -> int:
+def create_backups() -> None:
     local_backup_env = get_local_backup_env()
     local_backup_exit_code = 1
     if local_backup_env is not None:
         local_backup_exit_code = create_backup("local", local_backup_env)
 
     remote_backup_env = get_remote_backup_env()
-    remote_backup_exit_code = 1
+    remote_backup_exit_code = 0
     if remote_backup_env is not None:
         remote_backup_exit_code = create_backup("remote", remote_backup_env)
 
     if local_backup_exit_code != 0:
-        return local_backup_exit_code
+        sys.exit(local_backup_exit_code)
 
-    return remote_backup_exit_code
+    if remote_backup_exit_code != 0:
+        sys.exit(remote_backup_exit_code)
 
 
 @create.command("local")
 def create_local() -> None:
-    server = server_connect()
-
     local_backup_env = get_local_backup_env()
     if local_backup_env is not None:
         n = create_backup("local", local_backup_env)
@@ -55,18 +54,16 @@ def create_local() -> None:
 
 @create.command("remote")
 def create_remote() -> None:
-    server = server_connect()
-
     remote_backup_env = get_remote_backup_env()
     if remote_backup_env is not None:
         n = create_backup("remote", remote_backup_env)
         if n != 0:
-            return n
+            sys.exit(n)
     else:
         sys.exit(1)
 
 
-def create_backup(type: str, env: dict[str, str]) -> int:
+def create_backup(type: str, env: dict[str, str | None]) -> int:
     server = server_connect()
 
     output: Result = server.run(
