@@ -13,15 +13,18 @@ starter-home
     - (which are defined by [Quadlet](https://docs.podman.io/en/latest/markdown/podman-systemd.unit.5.html) files),
 - and handles backups for these services automatically using [restic](https://restic.net/).
 
-> Ok, but what do _I_ need to do?
+> Ok, but why would I use this?
 
-All you need to do is [install](#installation) starter-home and [define your services](#defining-services).
+The two biggest reasons to use starter-home are:
+
+- Security: starter-home runs each service in its own container inside a VM. If a service gets hacked, the attacker has to escape the container and VM to get to your host computer, which is hard.
+- Backups: starter-home handles backups and sometimes even restores automatically. If your computer dies, starter-home makes it easy to get your services running on another computer just as they were before.
 
 ## Installation
 
 starter-home is meant to be installed on a fresh Debian 13 installation. See [here](https://www.debian.org/download) for instructions on how to install Debian.
 
-1. Clone this repository:
+### 1. Clone this repository:
 
 ```
 git clone https://github.com/isikkema/starter-home.git
@@ -29,13 +32,13 @@ git clone https://github.com/isikkema/starter-home.git
 
 This simply copies the files from GitHub to your computer.
 
-2. Move into the starter-home directory:
+### 2. Move into the starter-home directory:
 
 ```
 cd starter-home
 ```
 
-3. Run the install script:
+### 3. Run the install script:
 
 ```
 ./install.sh
@@ -43,7 +46,7 @@ cd starter-home
 
 This installs starter-home and its dependencies.
 
-4. Log out and log back in OR run:
+### 4. Log out and log back in OR run:
 
 ```
 newgrp incus
@@ -54,7 +57,13 @@ This creates a new shell session where your user is part of the incus group.
 > [!NOTE]
 > Until you log out and log back in, you'll need to run the above command every time your shell restarts.
 
-5. Setup starter-home.
+If you do log out, make sure to move back to the starter-home directory when you log back in.
+
+```
+cd starter-home
+```
+
+### 5. Setup starter-home.
 
 ```
 starter-home setup
@@ -62,7 +71,7 @@ starter-home setup
 
 This command runs you through a one-time, guided setup where you can configure starter-home to your liking.
 
-You'll be asked to configure specs for the starter-home VM, along with with some networking features like port forwarding and split DNS.
+You'll be asked to configure specs for the starter-home VM, along with some networking features like port forwarding and split DNS.
 
 Yes or no questions will be denoted with `y/n: `. If one particular option is recommended, it will be capitalized, like so `Y/n: `, and selected by default if left blank.
 
@@ -70,7 +79,7 @@ Other configuration options will ask for generic open-ended input. In some cases
 
 Look at the [The `starter-home setup` Command](#the-starter-home-setup-command) section of this README if you have questions about any of the setup options.
 
-6. Define your services.
+### 6. Define your services.
 
 **This is the most important part.**
 
@@ -86,7 +95,7 @@ cp -r examples/caddy/ examples/jellyfin/ services/
 Otherwise, you can (and should) define your own services.  
 Look at the [Defining Services](#defining-services) section of this README for information on how to do this.
 
-7. Deploy your server!
+### 7. Deploy your server!
 
 ```
 starter-home deploy
@@ -98,36 +107,76 @@ When you first run this, it will create the starter-home VM with an IP address o
 
 On subsequent runs, it will apply any changes you've made to your service definitions. Updated services will be restarted, new services will be spun up, and deleted services will be stopped and removed.
 
-8. Use your services!
+### 8. Use your services!
 
 Congrats! Your server is up and running.
 
-You can reach your server at `10.50.0.100`. You can also reach your service at `10.50.0.100:<whatever_port_you_published>`.
+You can now use the services you defined!
 
-If you let starter-home setup split DNS,
-
-- And you told starter-home **NOT** to resolve `*.starter.home.arpa` to your host's LAN IP
-
-    You can reach your service at `starter.home.arpa:<whatever_port_you_published>`.
-
-- And you told starter-home to resolve `*.starter.home.arpa` to your host's LAN IP
-    - And you forwarded a port from `<source_port>` to `<whatever_port_you_published>`
-
-        You can reach your service at `starter.home.arpa:<source_port>`
-
-        - And `<source_port>` is `80`
-            - And your service is meant to be accessed through the web
-
-                You can reach your service at `http://starter.home.arpa`
+For information on accessing your services, see the [Accessing Your Services](#accessing-your-services) section of this README.
 
 ---
 
 > [!NOTE]
-> After your server is up and running, consider creating your own git repo and pushing this directory there. Include everything EXCEPT for the `local_backup.env` and `remote_backup.env` files, the secrets directory, and any files that contain any secret information in your defined services.
+> After your server is running to your satisfaction, consider creating your own git repo and pushing this directory there. Include everything EXCEPT for the `local_backup.env` and `remote_backup.env` files, the secrets directory, and any files that contain any secret information in your defined services.
+
+## Accessing Your Services
+
+### From the computer running starter-home
+
+You can reach your server at `10.50.0.100`.
+If you published a port for a service,
+you can reach that service at `10.50.0.100:<published_port>`.
+
+For example, say you've got the line
+
+```
+PublishPort=8096:1234
+```
+
+in your service's `.container` file.
+
+In this case, `8096` is the published port that will be accessible at `10.50.0.100:8096`. (`1234` is just an example port that's the service listens to inside the container. It will be different for most services, and it is dependent on the specific service.)
+
+#### Forwarded Ports
+
+If you forwarded a port from `<source_port>` to `<published_port>`, you can reach that service at `<your_host's_LAN_IP>:<source_port>`.
+
+For example, if you entered `8080,8096` during the port forward step of `starter-home setup` and your host's LAN IP was `192.168.0.55`, you could access your service at `192.168.0.55:8080`.
+
+This is also how you would access that service from another computer on your local network.
+
+#### Split DNS
+
+If you enabled split DNS, starter-home configured your host computer to point `*.starter.home.arpa` to either `10.50.0.100` or your host's LAN IP.
+
+This means that you can access services from either `starter.home.arpa:<published_port>` or, if you told starter-home to point `*.starter.home.arpa` to your host's LAN IP **AND** you forwarded a port from `<source_port>` to `<published_port>`, `starter.home.arpa:<source_port>`.
+
+### From a different computer on your local network
+
+Other computers on your local network can't directly access `10.50.0.100`. They also use a different DNS server so `starter.home.arpa` will not point to anything, even if you set up split DNS on the computer running starter-home.
+
+You can only reach your services from a different computer on your local network if you forwarded a port from `<source_port>` to `<published_port>`.
+If you did that, you can reach that service at `<your_host's_LAN_IP>:<source_port>`.
+
+### Web Services
+
+If your service is meant to be accessed via a web browser, you'll likely need to prepend the url with `http://`. Ex: `http://starter.home.arpa:<published_port>`.
+
+Most web browsers assume `https` by default, which is a more secure version of `http` that uses TLS certificates to encrypt your connection to the service. If you don't know what this means, your service is likely using `http`.
+
+**(Recommended)** If you want your service to use https instead, look into using [Caddy](https://caddyserver.com/docs/quick-starts/https).
+
+By default, `http` will assume the port you want to access is `80`. `https` will assume `443`.
+That means that you can forward `80` or `443` to `<published_port>` and then access your service in your web browser without specifying the source port. Ex: `http://starter.home.arpa`.
 
 ## The `starter-home setup` Command
 
 After running `starter-home setup`, you'll be given several options for configuring your server.
+
+> [!NOTE]
+> In this README, the term "host" refers to the computer that is running starter-home.  
+> The term "VM" stands for virtual machine, and you can think of it like a simulated computer running inside your host computer.
 
 The first set of options will ask about the physical computing resources that should be given to your server VM.
 
@@ -141,7 +190,9 @@ The first set of options will ask about the physical computing resources that sh
 
     - Host computer's LAN IP: This asks for your computer's IP address on your home's local network. starter-home uses this as the IP address to listen on for any source ports that are forwarded.
 
-    - Forward Port: This asks for a single source port and single destination port, which is forwarded like so `<Host's LAN IP>:<source port> -> 10.50.0.100:<destination port>`, keeping in mind that `10.50.0.100` is the server VM's IP. It will continue to ask for more ports until you leave it blank and hit enter.
+    - Forward Port: This asks for a single source port and single destination port, which is forwarded like so `<Host's LAN IP>:<source_port> -> 10.50.0.100:<destination_port>`, keeping in mind that `10.50.0.100` is the server VM's IP. It will continue to ask for more ports until you leave it blank and hit enter.
+
+      If you want to access your services from a computer other than the one you're installing starter-home on, you'll need to forward ports to the ports you published in your service definitions. See [Accessing Your Services](#accessing-your-services) for more on that.
 
     - Password for local backups: This is the password that starter-home will use for the local restic repository at `host-storage/backup/`. A password is required for restic repositories. This password is saved in `backup/local_backup.env` for use by starter-home.
 
@@ -191,6 +242,7 @@ PublishPort=8096:8096
 
 # This is the network that the service will run on.
 # This is important if there are any other services you run that this service will need to be able to talk to.
+# Services must be on the same network to communicate with each other.
 Network=web.network
 
 # These are volumes. You can think of volumes as self-contained folders.
@@ -251,7 +303,7 @@ VolumeName=jellyfin-cache
 
 Run `starter-home deploy` to start your new service!
 
-And access it at `http://10.50.0.100:8096`.
+And access it from the host at `http://10.50.0.100:8096`.
 
 ### More Examples
 
@@ -263,6 +315,8 @@ If you must know, these files I've been having you create are called quadlet fil
 
 starter-home backups are handled by [restic](https://restic.readthedocs.io/en/stable/010_introduction.html) from inside the server.
 They are encrypted with a user-defined password, and can be stored locally and/or remotely.
+
+Backups consist entirely of the Podman volumes that you define for your services in `.volume` files.
 
 Backups are automatically created every night at around 3am.
 
@@ -289,7 +343,7 @@ To do this, create `backup/remote_backup.env` with the necessary environment var
 A list of restic's supported environment variables can be found [here](https://restic.readthedocs.io/en/stable/075_scripting.html#environment-variables).  
 Guides for setting up restic repositories can be found [here](https://restic.readthedocs.io/en/stable/030_preparing_a_new_repo.html).
 
-When deploying for the first time, starter-home will automatically restore from a remote backup if a local backup does not exist and `backup/remote_backup.env` is defined.
+When deploying for the first time, starter-home will automatically restore from the latest remote backup if a local backup does not exist and `backup/remote_backup.env` is defined.
 
 That means that you can:
 
@@ -303,7 +357,7 @@ That means that you can:
 
 ## Network Attached Storage
 
-To use a NAS with starter-home, simply mount it to `nas/` in the starter-home directory.
+To use a NAS with starter-home, simply mount it on the host to `nas/` in the starter-home directory.
 
-The NAS must be mounted before the server is started.
-If your server is already running, you can mount the NAS and then run `starter-home restart` to restart your server.
+The NAS must be mounted before the server VM is started.
+If your server VM is already running, you can mount the NAS and then run `starter-home restart` to restart it.
