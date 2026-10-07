@@ -14,9 +14,11 @@ from httpx import Client
 from invoke.runners import Result
 from paramiko.ssh_exception import NoValidConnectionsError
 
-from starter_home.backup import get_local_backup_env, get_remote_backup_env
-from starter_home.server import server_connect
-
+from .backup import (
+    create_backups,
+    get_local_backup_env,
+    get_remote_backup_env,
+)
 from .files import (
     BACKUP,
     BASE_CONFIG,
@@ -32,6 +34,7 @@ from .files import (
     SSH_KEY_PUBLIC,
 )
 from .incus import create_instance, get_instance, new_incus_client, start_instance
+from .server import server_connect
 
 IMAGE = "images:debian/13/cloud"
 IP_ADDRESS = "10.50.0.100"
@@ -48,13 +51,13 @@ def deploy() -> None:
     ensure_known_hosts()
 
     client = new_incus_client()
-    ensure_vm_running(client, incus_config)
+    created = ensure_vm_running(client, incus_config)
 
     resolve_addr = "10.50.0.100"
     if custom_config["resolve_local"]:
         resolve_addr = custom_config["local_address"]
 
-    install_services(client, resolve_addr)
+    install_services(client, resolve_addr, created)
 
 
 def check_incus() -> None:
@@ -193,15 +196,20 @@ def create_known_hosts() -> None:
     )
 
 
-def ensure_vm_running(client: Client, incus_config: dict[str, Any]) -> None:
+def ensure_vm_running(client: Client, incus_config: dict[str, Any]) -> bool:
+    created = False
+
     instance = get_instance(client)
     if instance is None:
         print("Creating server...")
         create_instance(client, incus_config)
+        created = True
 
     if instance is None or instance.state.lower() != "running":
         print("Starting server...")
         start_instance(client)
+
+    return created
 
 
 def check_vm_exists(client: Client) -> bool:
@@ -327,7 +335,7 @@ def wait_for_server(client: Client) -> Connection:
     raise TimeoutError("Timed out while trying to connect to server")
 
 
-def install_services(client: Client, resolve_addr: str) -> None:
+def install_services(client: Client, resolve_addr: str, created: bool) -> None:
     SERVICES.mkdir(mode=0o755, exist_ok=True)
 
     services = [Service(dir) for dir in SERVICES.iterdir() if dir.is_dir()]
@@ -394,100 +402,103 @@ def install_services(client: Client, resolve_addr: str) -> None:
     for file in backup_files:
         server.put(f"{file!s}", "/home/starter-home/backup/")
 
-    local_backup_env = get_local_backup_env()
+    if created:
+        local_backup_env = get_local_backup_env()
 
-    output: Result = server.run(
-        "restic cat config",
-        env=local_backup_env,
-        hide=True,
-        warn=True,
-    )
-
-    local_restore = False
-    if output.return_code == 0:
-        output = server.run(
-            "restic snapshots --json --latest 1",
-            env=local_backup_env,
-            hide=True,
-        )
-
-        if len(json.loads(output.stdout)) > 0:
-            local_restore = True
-    elif output.return_code == 10:
-        server.run(
-            "restic init",
-            env=local_backup_env,
-            echo=True,
-        )
-    else:
-        print(output.stderr)
-        raise RuntimeError("Failed to initialize local backup")
-
-    if local_restore and len(restore_volumes) > 0:
-        server.run(
-            "restic restore latest --target /home/starter-home/local_restore",
-            env=local_backup_env,
-            echo=True,
-        )
-
-        for volume in restore_volumes:
-            output = server.run(
-                f"test -f /home/starter-home/local_restore/{volume}.tar",
-                hide=True,
-                warn=True,
-            )
-            if output.return_code == 0:
-                server.run(
-                    f"podman volume import {volume} /home/starter-home/local_restore/{volume}.tar",
-                    echo=True,
-                )
-
-        server.run("rm -rf /home/starter-home/local_restore", echo=True)
-
-    if REMOTE_BACKUP_ENV.exists():
-        remote_backup_env = get_remote_backup_env()
-
-        output = server.run(
+        output: Result = server.run(
             "restic cat config",
-            env=remote_backup_env,
+            env=local_backup_env,
             hide=True,
             warn=True,
         )
 
-        remote_restore = False
+        local_restore = False
         if output.return_code == 0:
             output = server.run(
                 "restic snapshots --json --latest 1",
-                env=remote_backup_env,
+                env=local_backup_env,
                 hide=True,
             )
 
             if len(json.loads(output.stdout)) > 0:
-                remote_restore = True
+                local_restore = True
         elif output.return_code == 10:
             server.run(
                 "restic init",
-                env=remote_backup_env,
+                env=local_backup_env,
                 echo=True,
             )
         else:
             print(output.stderr)
-            raise RuntimeError("Failed to initialize remote backup")
+            raise RuntimeError("Failed to initialize local backup")
 
-        if remote_restore and not local_restore and len(restore_volumes) > 0:
+        if local_restore and len(restore_volumes) > 0:
             server.run(
-                "restic restore latest --target /home/starter-home/remote_restore",
-                env=remote_backup_env,
+                "restic restore latest --target /home/starter-home/local_restore",
+                env=local_backup_env,
                 echo=True,
             )
 
             for volume in restore_volumes:
                 output = server.run(
-                    f"podman volume import {volume} /home/starter-home/remote_restore/{volume}.tar",
+                    f"test -f /home/starter-home/local_restore/{volume}.tar",
+                    hide=True,
+                    warn=True,
+                )
+                if output.return_code == 0:
+                    server.run(
+                        f"podman volume import {volume} /home/starter-home/local_restore/{volume}.tar",
+                        echo=True,
+                    )
+
+            server.run("rm -rf /home/starter-home/local_restore", echo=True)
+
+        if REMOTE_BACKUP_ENV.exists():
+            remote_backup_env = get_remote_backup_env()
+
+            output = server.run(
+                "restic cat config",
+                env=remote_backup_env,
+                hide=True,
+                warn=True,
+            )
+
+            remote_restore = False
+            if output.return_code == 0:
+                output = server.run(
+                    "restic snapshots --json --latest 1",
+                    env=remote_backup_env,
+                    hide=True,
+                )
+
+                if len(json.loads(output.stdout)) > 0:
+                    remote_restore = True
+            elif output.return_code == 10:
+                server.run(
+                    "restic init",
+                    env=remote_backup_env,
+                    echo=True,
+                )
+            else:
+                print(output.stderr)
+                raise RuntimeError("Failed to initialize remote backup")
+
+            if remote_restore and not local_restore and len(restore_volumes) > 0:
+                server.run(
+                    "restic restore latest --target /home/starter-home/remote_restore",
+                    env=remote_backup_env,
                     echo=True,
                 )
 
-            server.run("rm -rf /home/starter-home/remote_restore", echo=True)
+                for volume in restore_volumes:
+                    output = server.run(
+                        f"podman volume import {volume} /home/starter-home/remote_restore/{volume}.tar",
+                        echo=True,
+                    )
+
+                server.run("rm -rf /home/starter-home/remote_restore", echo=True)
+    else:
+        create_backups()
 
     server.run(
         "systemctl --user restart *-build.service",
