@@ -75,11 +75,15 @@ def get_custom_config() -> dict[str, Any]:
 
 
 def get_incus_config(custom_config: dict[str, Any]) -> dict[str, Any]:
-    if GENERATED_CONFIG.exists():
-        with open(GENERATED_CONFIG, "r") as f:
-            return json.load(f)
+    if (
+        not GENERATED_CONFIG.exists()
+        or CUSTOM_CONFIG.exists()
+        and CUSTOM_CONFIG.stat().st_mtime > GENERATED_CONFIG.stat().st_mtime
+    ):
+        return generate_incus_config(custom_config)
 
-    return generate_incus_config(custom_config)
+    with open(GENERATED_CONFIG, "r") as f:
+        return json.load(f)
 
 
 def generate_incus_config(custom_config: dict[str, Any]) -> dict[str, Any]:
@@ -427,7 +431,11 @@ def install_services(client: Client, resolve_addr: str) -> None:
         )
 
         for volume in restore_volumes:
-            output = server.run(f"test -f /home/starter-home/local_restore/{volume}.tar", hide=True, warn=True)
+            output = server.run(
+                f"test -f /home/starter-home/local_restore/{volume}.tar",
+                hide=True,
+                warn=True,
+            )
             if output.return_code == 0:
                 server.run(
                     f"podman volume import {volume} /home/starter-home/local_restore/{volume}.tar",
