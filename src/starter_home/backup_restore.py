@@ -4,8 +4,15 @@ from fabric.connection import Connection
 
 
 def restore_backup(
-    server: Connection, restore_dir: Path, env: dict[str, str | None], snapshot_id: str
+    server: Connection,
+    restore_dir: Path,
+    env: dict[str, str | None] | None,
+    snapshot_id: str,
 ) -> None:
+    if env is None:
+        print("Failed to restore backup.")
+        return
+
     volumes = get_volumes(server)
     if len(volumes) == 0:
         print("No volumes to restore.")
@@ -94,6 +101,11 @@ def import_volumes(server: Connection, restore_dir: Path, volumes: list[str]) ->
             f"podman volume import {volume} {import_path!s}",
             hide=True,
         )
+
+    server.run(
+        f"rm -rf {restore_dir!s}",
+        hide=True,
+    )
 
 
 def restore_volumes(
