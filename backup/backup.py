@@ -1,3 +1,4 @@
+import shutil
 import subprocess
 import sys
 from pathlib import Path
@@ -99,6 +100,8 @@ def backup_exports(export_dir: Path) -> None:
         cwd=export_dir,
         check=True,
     )
+
+    shutil.rmtree(export_dir)
 
 
 if __name__ == "__main__":
