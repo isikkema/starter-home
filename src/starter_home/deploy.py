@@ -362,7 +362,9 @@ def install_services(client: Client, resolve_addr: str, created: bool) -> None:
     server.run("sudo mkdir -p /vm-storage", echo=True)
     server.run("sudo chown starter-home:starter-home /vm-storage", echo=True)
 
-    # TODO: Handle changed or deleted directories
+    if not created:
+        create_backups()
+
     for service in services:
         print(f"Checking {service.name} definition...")
         service.copy_to_server(server)
@@ -377,25 +379,11 @@ def install_services(client: Client, resolve_addr: str, created: bool) -> None:
         echo=True,
     )
 
-    before_volumes: set[str] = set(
-        server.run(
-            "podman volume ls --format '{{ .Name }}'", hide=True
-        ).stdout.splitlines()
-    )
-
     server.run(
         "systemctl --user restart --all '*-volume.service'",
         env={"XDG_RUNTIME_DIR": "/run/user/1000"},
         echo=True,
     )
-
-    after_volumes: set[str] = set(
-        server.run(
-            "podman volume ls --format '{{ .Name }}'", hide=True
-        ).stdout.splitlines()
-    )
-
-    restore_volumes = after_volumes - before_volumes
 
     server.run("mkdir -p /home/starter-home/backup", echo=True)
     backup_files = BACKUP.glob("*")
@@ -403,6 +391,12 @@ def install_services(client: Client, resolve_addr: str, created: bool) -> None:
         server.put(f"{file!s}", "/home/starter-home/backup/")
 
     if created:
+        restore_volumes: set[str] = set(
+            server.run(
+                "podman volume ls --format '{{ .Name }}'", hide=True
+            ).stdout.splitlines()
+        )
+        
         local_backup_env = get_local_backup_env()
 
         output: Result = server.run(
@@ -497,8 +491,6 @@ def install_services(client: Client, resolve_addr: str, created: bool) -> None:
                     )
 
                 server.run("rm -rf /home/starter-home/remote_restore", echo=True)
-    else:
-        create_backups()
 
     server.run(
         "systemctl --user restart *-build.service",
