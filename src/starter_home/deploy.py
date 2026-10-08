@@ -303,6 +303,45 @@ class Service:
         )
 
 
+class DeployedService:
+    def __init__(self, name: str, server: Connection) -> None:
+        self.name = name
+        self.path = Path("/home/starter-home/.config/containers/systemd") / self.name
+
+        output: Result = server.run(
+            f"find {self.path} -mindepth 1 -maxdepth 1 -type f \\( -name '*.volume' -o -name '*.network' -o -name '*.build' \\)",
+            hide=True,
+        )
+
+        self.files = [Path(path) for path in output.stdout.splitlines()]
+
+    def delete(self, server: Connection) -> None:
+        server.run(
+            f"systemctl --user stop '{self.name}.service'",
+            env={"XDG_RUNTIME_DIR": "/run/user/1000"},
+            echo=True,
+        )
+
+        for file in self.files:
+            name, type = file.name.rsplit(".", maxsplit=1)
+
+            server.run(
+                f"systemctl --user stop '{name}-{type}.service'",
+                env={"XDG_RUNTIME_DIR": "/run/user/1000"},
+                echo=True,
+            )
+
+            match type:
+                case "volume":
+                    server.run(f"podman volume rm '{name}'", echo=True)
+                case "network":
+                    server.run(f"podman network rm '{name}'", echo=True)
+                case "build":
+                    pass
+
+        server.run(f"rm -rf '{self.path}'", echo=True)
+
+
 def wait_for_server(client: Client) -> Connection:
     start = time.time()
     while time.time() - start <= 180:
@@ -372,6 +411,20 @@ def install_services(client: Client, resolve_addr: str, created: bool) -> None:
             print("Updated.")
         else:
             print("No change.")
+
+    with server.cd("/home/starter-home/.config/containers/systemd"):
+        output = server.run(
+            "find -mindepth 1 -maxdepth 1 -type d -printf '%P\n'", hide=True
+        )
+        deployed_services = set(output.stdout.splitlines())
+
+    wanted_services = {service.name for service in services}
+    unwanted_services = deployed_services - wanted_services
+    for service in unwanted_services:
+        DeployedService(service, server).delete(server)
+
+    if len(unwanted_services) > 0:
+        server.run("podman image prune --all --force", echo=True)
 
     server.run(
         "systemctl --user daemon-reload",
